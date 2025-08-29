@@ -1,0 +1,119 @@
+:root {
+  --arka-plan: #ffffff;
+  --yazi-rengi: #000000;
+  --kutu-arkaplan: rgb(254, 211, 19); 
+  --kutu-golge: rgb(76, 76, 75);
+  --buton-arkaplan: #000000; /* Siyah */
+  --buton-yazi: rgb(255, 255, 255); /* Beyaz */
+  --link-rengi: #000000; /* Siyah */
+  --input-arkaplan: #ffffff; /* Beyaz */
+  --input-yazi: rgb(205, 176, 44);  /* Sarı */
+  --input-cerceve: #ccc;
+  --buton-hover-arkaplan: #ffffff; /* Beyaz */
+  --buton-hover-yazi: #000000; /* Siyah */
+  --tema-dugme-arkaplan: #000000;
+  --selected-buton-arkaplan: rgb(255, 255, 255);
+  --selected-buton-yazi: rgb(0, 0, 0);
+}
+
+body.dark-mode {
+  --arka-plan: #000000;
+  --yazi-rengi: rgb(255, 255, 255);
+  --kutu-arkaplan:rgba(248, 178, 2, 0.801); 
+  --buton-arkaplan: #ffffff;
+  --buton-yazi: #000000;
+  --link-rengi: #ffffff;
+  --input-arkaplan: #000000;
+  --input-yazi: rgb(254, 211, 19); 
+  --input-cerceve: #000000;
+  --buton-hover-arkaplan: #000000;
+  --buton-hover-yazi: #ffffff;
+  --tema-dugme-arkaplan: rgb(254, 211, 19);
+  --selected-buton-arkaplan: rgb(0, 0, 0);
+  --selected-buton-yazi: rgb(255, 255, 255);
+}
+
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-height: 100vh;
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  background-color: var(--arka-plan);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+h1 {
+  font-size: 2.8em;
+  line-height: 1.1;
+  color: var(--yazi-rengi);
+}
+
+a {
+  font-weight: 500;
+  color: var(--link-rengi);
+  text-decoration: inherit;
+}
+
+a:hover {
+  color: #253c61; /* Bu sabit kalabilir veya değişken yapılabilir */
+}
+
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100vw;
+}
+
+.tema-kutusu {
+  width: 100%;
+  max-width: 400px;
+  padding: 2em;
+  margin: 1rem;
+  border-radius: 12px;
+  text-align: center;
+  background-color: var(--kutu-arkaplan);
+  box-shadow: 0 5px 20px var(--kutu-golge);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.tema-kutusu input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  font-size: 1em;
+  border: 2px solid var(--input-cerceve); /* border: 2px; geçersizdi, düzelttim */
+  background-color: var(--input-arkaplan);
+  color: var(--input-yazi);
+}
+
+.tema-butonu {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  font-size: 1em;
+  border: 1px solid transparent;
+  font-weight: 500;
+  cursor: pointer;
+  background-color: var(--buton-arkaplan);
+  color: var(--buton-yazi);
+  transition: background-color 0.25s, color 0.25s;
+}
+
+.tema-butonu:hover {
+  background-color: var(--buton-hover-arkaplan);
+  color: var(--buton-hover-yazi);
+}
+
+.tema-kutusu p {
+  margin-top: 1.5rem;
+  color: var(--yazi-rengi);
+}
