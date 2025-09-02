@@ -47,6 +47,9 @@
             {{ selectedMonthDate.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }) }}
           </span>
         </h2>
+        <div v-if="isLoading" class="loading-spinner">
+         <div></div><div></div><div></div><div></div>
+        </div>
         <button v-if="activeCategory === 'Günlük'" @click="isCalendarVisible = !isCalendarVisible" class="calendar-toggle-button" ref="calendarButtonRef">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 4H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/>
@@ -104,17 +107,18 @@
           </div>
         </div>
         <ul class="todo-list">
-          <li v-for="task in tasks" :key="task.id" :class="{ 'completed': task.state === 2, 'disabled': task.state === 0 }">
-  <input 
-    type="checkbox" 
-    :checked="task.state === 2"
-    :disabled="task.state !== 1"
-    @change="toggleTaskState(task)" 
-  />
-  <span>{{ task.title }}</span>
-  <button @click="deleteTask(task.id)" class="delete-button">×</button>
-</li>
-        </ul>
+  <li v-for="task in tasks" :key="task.id" 
+      :class="{ 'completed': task.state === 2, 'disabled': task.state === 0 }">
+    <input 
+      type="checkbox" 
+      :checked="task.state === 2"
+      :disabled="task.state !== 1"
+      @change="toggleTaskState(task)" 
+    />
+    <span>{{ task.title }}</span>
+    <button @click="deleteTask(task.id)" class="delete-button">×</button>
+  </li>
+</ul>
         <div v-if="tasks.length === 0" class="no-project-selected">
           <p>Kurtulmak istediğiniz bir {{activeCategory}} alışkanlık ekleyin.</p>
         </div>
@@ -158,6 +162,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { isDarkMode } from '../themeStore.js';
 import 'v-calendar/style.css';
 import { DatePicker as VDatePicker } from 'v-calendar';
+import { useToast } from 'vue-toastification';
 
 // --- Değişken Tanımlamaları ---
 const tasks = ref([]);
@@ -183,52 +188,52 @@ const monthSelectorPanelRef = ref(null);
 const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 const currentMonthIndex = ref(new Date().getMonth());
 const currentYear = ref(new Date().getFullYear());
+const isLoading = ref(false);
+const toast = useToast();
 
 // --- API Fonksiyonları ---
 
-// MEVCUT fetchTasks FONKSİYONUNU SİL VE YERİNE BUNU YAPIŞTIR
-
+// YÜKLENİYOR GÖSTERGESİ İÇİN GÜNCELLENDİ
 async function fetchTasks() {
   if (!userId) return;
-  let apiUrl = `http://localhost:5000/api/users/${userId}/todos?category=${activeCategory.value}`;
+  isLoading.value = true; // Yükleme başladı
+  try {
+    let apiUrl = `http://localhost:5000/api/users/${userId}/todos?category=${activeCategory.value}`;
 
-  if (activeCategory.value === 'Günlük') {
-    // Backend'e artık tek bir tarih değil, günün başlangıç ve bitiş aralığını gönderiyoruz.
-    const startOfDay = new Date(selectedDate.value);
-    startOfDay.setHours(0, 0, 0, 0);
+    if (activeCategory.value === 'Günlük') {
+      const startOfDay = new Date(selectedDate.value);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(selectedDate.value);
+      endOfDay.setHours(23, 59, 59, 999);
+      apiUrl += `&startDate=${startOfDay.toISOString()}&endDate=${endOfDay.toISOString()}`;
+    } 
+    else if (activeCategory.value === 'Haftalık') {
+      apiUrl += `&year=${selectedYear.value}&week=${selectedWeek.value}`;
+    }
+    else if (activeCategory.value === 'Aylık') {
+      const year = selectedMonthDate.value.getFullYear();
+      const month = selectedMonthDate.value.getMonth() + 1;
+      apiUrl += `&year=${year}&month=${month}`;
+    }
 
-    const endOfDay = new Date(selectedDate.value);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    // Bu tarihleri evrensel saate (UTC) çevirip URL'e ekliyoruz.
-    apiUrl += `&startDate=${startOfDay.toISOString()}&endDate=${endOfDay.toISOString()}`;
-  } 
-  else if (activeCategory.value === 'Haftalık') {
-    apiUrl += `&year=${selectedYear.value}&week=${selectedWeek.value}`;
-  }
-  else if (activeCategory.value === 'Aylık') {
-    const year = selectedMonthDate.value.getFullYear();
-    const month = selectedMonthDate.value.getMonth() + 1;
-    apiUrl += `&year=${year}&month=${month}`;
-  }
-
-  const res = await fetch(apiUrl);
-  if (res.ok) {
-    tasks.value = await res.json();
+    const res = await fetch(apiUrl);
+    if (res.ok) {
+      tasks.value = await res.json();
+    }
+  } catch (error) {
+    toast.error("Görevler yüklenirken bir hata oluştu.");
+  } finally {
+    isLoading.value = false; // Yükleme bitti (başarılı ya da hatalı)
   }
 }
 
-// YENİ GÖREV OLUŞTURMA (SAAT BİLGİSİ HATASI İÇİN GÜNCELLENDİ)
+// ALERT YERİNE TOAST BİLDİRİMİ KULLANACAK ŞEKİLDE GÜNCELLENDİ
 async function createTaskApi(title, category) {
     const taskData = {
         title: title,
         category: category,
-        isCompleted: false,
-        // Artık görevin oluşturulduğu anın tam saatini (UTC) gönderiyoruz.
-        // Bu, "saat bilgisi hatalı" sorununu çözer.
         createdAt: new Date().toISOString()
     };
-
     const res = await fetch(`http://localhost:5000/api/users/${userId}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,22 +244,56 @@ async function createTaskApi(title, category) {
         if (category === activeCategory.value) {
             fetchTasks();
         }
+        return true; // Başarılı olduğunu belirtmek için true dön
     } else {
-        alert('Görev oluşturulamadı.');
+        toast.error('Görev oluşturulamadı.');
+        return false; // Başarısız olduğunu belirt
     }
 }
 
-// --- DİĞER FONKSİYONLAR ---
-
+// ALERT YERİNE TOAST BİLDİRİMİ KULLANACAK ŞEKİLDE GÜNCELLENDİ
 async function createTaskFromPopup() {
     if (!newChallengeName.value.trim() || !userId) return;
-    await createTaskApi(newChallengeName.value, newTaskCategory.value);
-    isChallengePopupVisible.value = false;
-    newChallengeName.value = '';
+    
+    const success = await createTaskApi(newChallengeName.value, newTaskCategory.value);
+    
+    if (success) {
+        isChallengePopupVisible.value = false;
+        newChallengeName.value = '';
+        toast.success(`'${newTaskCategory.value}' görevin başarıyla oluşturuldu ve yarın aktif olacak!`);
+        if (newTaskCategory.value !== activeCategory.value) {
+            selectCategory(newTaskCategory.value);
+        }
+    }
 }
 
-// GÖREV GÜNCELLEME (HATA DÜZELTİLDİ)
-// MEVCUT updateTask FONKSİYONUNU SİL VE YERİNE BU İKİ FONKSİYONU EKLE
+// ALERT YERİNE TOAST BİLDİRİMİ KULLANACAK ŞEKİLDE GÜNCELLENDİ
+async function deleteTask(taskId) {
+  const promptMessage = 'Bu alışkanlığı ve ilgili tüm geçmiş/gelecek görevleri kalıcı olarak silmek istediğinizden emin misiniz?\n\nLütfen şifrenizi girin:';
+  const password = prompt(promptMessage);
+  
+  if (password === null || password === '') return;
+
+  const res = await fetch(`http://localhost:5000/api/todos/template/${taskId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      password: password,
+      userId: parseInt(userId)
+    })
+  });
+
+  if (res.ok) {
+    toast.success("Alışkanlık başarıyla silindi.");
+    fetchTasks();
+  } else if (res.status === 401) {
+    toast.error('Geçersiz şifre! Görev silinemedi.');
+  } else {
+    toast.error('Görev silinirken bir hata oluştu.');
+  }
+}
+
+// --- DİĞER FONKSİYONLAR ---
 
 // Bu fonksiyon, checkbox'a tıklandığında çalışır.
 async function toggleTaskState(task) {
@@ -280,28 +319,6 @@ async function updateTask(task) {
     fetchTasks();
   } else {
     alert("Görev güncellenemedi.");
-  }
-}
-
-async function deleteTask(taskId) {
-  const password = prompt('Görevi silmek için lütfen şifrenizi girin:');
-  if (password === null || password === '') return;
-
-  const res = await fetch(`http://localhost:5000/api/todos/${taskId}`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      password: password,
-      userId: parseInt(userId)
-    })
-  });
-
-  if (res.ok) {
-    fetchTasks();
-  } else if (res.status === 401) {
-    alert('Geçersiz şifre! Görev silinemedi.');
-  } else {
-    alert('Görev silinirken bir hata oluştu.');
   }
 }
 
@@ -926,5 +943,31 @@ function nextYearForMonthView() {
 /* Temaya uygun soluk renk */
 :root.dark .todo-list li.disabled {
     background-color: #2d3748;
+}
+.loading-spinner {
+  display: inline-block;
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin: 50px auto;
+}
+.loading-spinner div {
+  box-sizing: border-box;
+  display: block;
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  margin: 8px;
+  border: 8px solid var(--yazi-rengi);
+  border-radius: 50%;
+  animation: loading-spinner 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  border-color: var(--yazi-rengi) transparent transparent transparent;
+}
+.loading-spinner div:nth-child(1) { animation-delay: -0.45s; }
+.loading-spinner div:nth-child(2) { animation-delay: -0.3s; }
+.loading-spinner div:nth-child(3) { animation-delay: -0.15s; }
+@keyframes loading-spinner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>

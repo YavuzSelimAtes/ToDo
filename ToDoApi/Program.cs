@@ -4,6 +4,7 @@ using ToDoApi.Data;
 using ToDoApi.Models;
 using ToDoApi.Helpers;
 using Hangfire;
+using ToDoApi.Services; 
 using Hangfire.PostgreSql;
 using System.Globalization; 
 
@@ -33,10 +34,16 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHangfireServer();
+builder.Services.AddScoped<TaskStateService>();
 
 var app = builder.Build();
 
 app.UseHangfireDashboard();
+RecurringJob.AddOrUpdate<TaskStateService>(
+    "daily-task-processor", 
+    service => service.ProcessDailyTasks(),
+    Cron.Daily(3, 0));
+
 app.UseCors("open");
 
 if (app.Environment.IsDevelopment())
@@ -185,39 +192,49 @@ app.MapPut("/api/todos/{id:int}", async (int id, TaskDto updatedTask, ToDoContex
     return Results.NoContent();
 });
 
-app.MapDelete("/api/todos/{id:int}", async (int id, [FromBody] DeleteTaskDto dto, ToDoContext db) =>
+app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [FromBody] DeleteTaskDto dto, ToDoContext db) =>
 {
-    // Önce şifresini kontrol edeceğimiz kullanıcıyı bulalım
+    // 1. Şifre ve Kullanıcı Doğrulaması (Değişiklik yok)
     var user = await db.Users.FindAsync(dto.UserId);
-    if (user is null)
-    {
-        return Results.NotFound("Kullanıcı bulunamadı.");
-    }
+    if (user is null) return Results.NotFound("Kullanıcı bulunamadı.");
 
-    // Gönderilen şifreyi hash'le ve veritabanındakiyle karşılaştır
     var hashed = HashPassword.Password(dto.Password);
-    if (user.PasswordHash != hashed)
+    if (user.PasswordHash != hashed) return Results.Unauthorized();
+
+    var taskInstance = await db.ToDoItems.FindAsync(instanceId);
+    if (taskInstance is null) return Results.NotFound("Görev bulunamadı.");
+    if (taskInstance.UserId != dto.UserId) return Results.Forbid();
+
+    // 2. Ana Şablonun ID'sini Bul (Değişiklik yok)
+    int? templateIdToDelete = taskInstance.IsTemplate ? taskInstance.Id : taskInstance.ParentTaskId;
+    if (templateIdToDelete is null)
     {
-        return Results.Unauthorized(); // Şifre yanlışsa yetkisiz hatası ver
+        // Eğer bir şablona bağlı değilse, sadece o tek görevi sil ve çık.
+        db.ToDoItems.Remove(taskInstance);
+        await db.SaveChangesAsync();
+        return Results.NoContent();
     }
 
-    // Şifre doğruysa, silinmek istenen görevi bul
-    var task = await db.ToDoItems.FindAsync(id);
-    if (task is null)
+    // --- YENİ SİLME MANTIĞI ---
+    // 3. Silinecek Görevleri Belirle
+    var today = DateTime.UtcNow.Date;
+
+    // Ana şablonu VE bugüne veya geleceğe ait olan tüm kopyaları bul.
+    // Geçmişteki kopyalara (eskiler) dokunma.
+    var tasksToDelete = await db.ToDoItems
+        .Where(t => 
+            t.Id == templateIdToDelete || // Ana şablonun kendisi
+            (t.ParentTaskId == templateIdToDelete && t.CreatedAt.Date >= today) // Bugünden itibaren oluşturulmuş kopyalar
+        )
+        .ToListAsync();
+
+    // 4. Bulunan Görevleri Sil
+    if (tasksToDelete.Any())
     {
-        return Results.NotFound("Görev bulunamadı.");
+        db.ToDoItems.RemoveRange(tasksToDelete);
+        await db.SaveChangesAsync();
     }
 
-    // Görevin, şifresini doğruladığımız kullanıcıya ait olduğundan emin ol (ekstra güvenlik)
-    if (task.UserId != dto.UserId)
-    {
-        return Results.Forbid();
-    }
-
-    // Her şey yolundaysa görevi sil
-    db.ToDoItems.Remove(task);
-    await db.SaveChangesAsync();
-    
     return Results.NoContent();
 });
 
