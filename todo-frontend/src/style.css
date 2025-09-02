@@ -1,25 +1,26 @@
 :root {
   --arka-plan: #ffffff;
   --yazi-rengi: #000000;
-  --kutu-arkaplan: rgb(254, 211, 19); 
+  --kutu-arkaplan: rgb(254, 195, 19); 
   --kutu-golge: rgb(76, 76, 75);
   --buton-arkaplan: #000000; /* Siyah */
   --buton-yazi: rgb(255, 255, 255); /* Beyaz */
   --link-rengi: #000000; /* Siyah */
   --input-arkaplan: #ffffff; /* Beyaz */
-  --input-yazi: rgb(205, 176, 44);  /* Sarı */
+  --input-yazi: rgb(185, 117, 0);  /* Sarı */
   --input-cerceve: #ccc;
   --buton-hover-arkaplan: #ffffff; /* Beyaz */
   --buton-hover-yazi: #000000; /* Siyah */
   --tema-dugme-arkaplan: #000000;
   --selected-buton-arkaplan: rgb(255, 255, 255);
   --selected-buton-yazi: rgb(0, 0, 0);
+  --selected-checkbox-bg: #ffffff;
 }
 
 body.dark-mode {
   --arka-plan: #000000;
   --yazi-rengi: rgb(255, 255, 255);
-  --kutu-arkaplan:rgba(248, 178, 2, 0.801); 
+  --kutu-arkaplan:rgb(185, 117, 0); 
   --buton-arkaplan: #ffffff;
   --buton-yazi: #000000;
   --link-rengi: #ffffff;
@@ -31,6 +32,7 @@ body.dark-mode {
   --tema-dugme-arkaplan: rgb(254, 211, 19);
   --selected-buton-arkaplan: rgb(0, 0, 0);
   --selected-buton-yazi: rgb(255, 255, 255);
+  --selected-checkbox-bg: #000000;
 }
 
 

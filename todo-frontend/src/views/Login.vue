@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h1 class="baslik-yazisi">Welcome TuDu</h1>
+    <h1 class="baslik-yazisi">Welcome Don'ts</h1>
   </div>
   <div class="auth-container">
     <div class="auth-flipper-container" :class="{ 'show-register': isRegisterVisible }">

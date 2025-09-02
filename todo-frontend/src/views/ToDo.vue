@@ -34,13 +34,86 @@
 
     <div class="todos-panel">
       <div v-if="activeCategory">
-        <h2>{{ activeCategory }}</h2>
+        <h2>
+          <span v-if="activeCategory === 'Günlük'" class="header-date">
+            {{ selectedDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) }}
+          </span>
+
+          <span v-if="activeCategory === 'Haftalık'" class="header-date">
+            {{ selectedWeek }}. Hafta {{ selectedYear }}
+          </span>
+
+          <span v-if="activeCategory === 'Aylık'" class="header-date">
+            {{ selectedMonthDate.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }) }}
+          </span>
+        </h2>
+        <button v-if="activeCategory === 'Günlük'" @click="isCalendarVisible = !isCalendarVisible" class="calendar-toggle-button" ref="calendarButtonRef">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 4H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/>
+          </svg>
+        </button>
+
+        <button v-if="activeCategory === 'Haftalık'" @click="isWeekSelectorVisible = !isWeekSelectorVisible" class="calendar-toggle-button" ref="weekSelectorButtonRef">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/>
+          </svg>
+        </button>
+
+        <button v-if="activeCategory === 'Aylık'" @click="isMonthSelectorVisible = !isMonthSelectorVisible" class="calendar-toggle-button" ref="monthSelectorButtonRef">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5v-5Z"/>
+          </svg>
+        </button>
+        <div v-if="activeCategory === 'Günlük' && isCalendarVisible" class="calendar-container" ref="calendarContainerRef">
+          <VDatePicker v-model="selectedDate" :is-dark="isDarkMode" expanded/>
+        </div>
+
+        <div v-if="activeCategory === 'Haftalık' && isWeekSelectorVisible" class="week-selector-panel" ref="weekSelectorPanelRef">
+          <div class="year-navigator">
+            <button @click="prevYear">&lt;</button>
+            <h3>{{ selectedYear }}</h3>
+            <button @click="nextYear">&gt;</button>
+          </div>
+          <div class="week-grid">
+            <div 
+              v-for="week in 52" 
+              :key="week" 
+              class="week-item"
+              :class="{ 'selected': week === selectedWeek, 'current': week === currentWeekNumber }"
+              @click="selectWeek(week)">
+              {{ week }}
+            </div>
+          </div>
+        </div>
+
+        <div v-if="activeCategory === 'Aylık' && isMonthSelectorVisible" class="month-selector-panel" ref="monthSelectorPanelRef">
+          <div class="year-navigator">
+            <button @click="prevYearForMonthView">&lt;</button>
+              <h3>{{ selectedMonthDate.getFullYear() }}</h3>
+            <button @click="nextYearForMonthView">&gt;</button>
+          </div>
+          <div class="month-grid">
+            <div 
+              v-for="(ay, index) in aylar" 
+              :key="ay" 
+              class="month-item"
+              :class="{ 'selected': index === selectedMonthDate.getMonth(), 'current': index === currentMonthIndex && selectedMonthDate.getFullYear() === currentYear }"
+              @click="selectMonth(index)">
+              {{ ay }}
+            </div>
+          </div>
+        </div>
         <ul class="todo-list">
-          <li v-for="task in tasks" :key="task.id" :class="{ 'completed': task.isCompleted }">
-            <input type="checkbox" v-model="task.isCompleted" @change="updateTask(task)" />
-            <span>{{ task.title }}</span>
-            <button @click="deleteTask(task.id)" class="delete-button">×</button>
-          </li>
+          <li v-for="task in tasks" :key="task.id" :class="{ 'completed': task.state === 2, 'disabled': task.state === 0 }">
+  <input 
+    type="checkbox" 
+    :checked="task.state === 2"
+    :disabled="task.state !== 1"
+    @change="toggleTaskState(task)" 
+  />
+  <span>{{ task.title }}</span>
+  <button @click="deleteTask(task.id)" class="delete-button">×</button>
+</li>
         </ul>
         <div v-if="tasks.length === 0" class="no-project-selected">
           <p>Kurtulmak istediğiniz bir {{activeCategory}} alışkanlık ekleyin.</p>
@@ -81,58 +154,88 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { isDarkMode } from '../themeStore.js';
+import 'v-calendar/style.css';
+import { DatePicker as VDatePicker } from 'v-calendar';
 
-// --- YENİ EKLENEN/GÜNCELLENEN KISIM ---
-// Proje yönetimiyle ilgili tüm eski değişkenler kaldırıldı.
-// Artık sadece görevleri (tasks) ve aktif kategoriyi takip ediyoruz.
+// --- Değişken Tanımlamaları ---
 const tasks = ref([]);
 const activeCategory = ref('Günlük');
-const newTaskCategory = ref('Günlük'); 
-const newTaskTitle = ref('');
+const newTaskCategory = ref('Günlük');
 const newChallengeName = ref('');
 const userId = localStorage.getItem('userId');
 const isChallengePopupVisible = ref(false);
+const selectedDate = ref(new Date());
+const isCalendarVisible = ref(true);
+const calendarContainerRef = ref(null);
+const calendarButtonRef = ref(null);
+const selectedYear = ref(new Date().getFullYear());
+const selectedWeek = ref(getCurrentWeekNumber());
+const weekSelectorPanelRef = ref(null); // Hafta seçici paneline referans
+const weekSelectorButtonRef = ref(null);
+const isWeekSelectorVisible = ref(true);
+const currentWeekNumber = ref(getCurrentWeekNumber());
+const selectedMonthDate = ref(new Date());
+const isMonthSelectorVisible = ref(true);
+const monthSelectorButtonRef = ref(null);
+const monthSelectorPanelRef = ref(null);
+const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+const currentMonthIndex = ref(new Date().getMonth());
+const currentYear = ref(new Date().getFullYear());
 
-// Seçilen kategoriye göre görevleri backend'den getirir.
+// --- API Fonksiyonları ---
+
+// MEVCUT fetchTasks FONKSİYONUNU SİL VE YERİNE BUNU YAPIŞTIR
+
 async function fetchTasks() {
   if (!userId) return;
-  const res = await fetch(`http://localhost:5000/api/users/${userId}/todos?category=${activeCategory.value}`);
+  let apiUrl = `http://localhost:5000/api/users/${userId}/todos?category=${activeCategory.value}`;
+
+  if (activeCategory.value === 'Günlük') {
+    // Backend'e artık tek bir tarih değil, günün başlangıç ve bitiş aralığını gönderiyoruz.
+    const startOfDay = new Date(selectedDate.value);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(selectedDate.value);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Bu tarihleri evrensel saate (UTC) çevirip URL'e ekliyoruz.
+    apiUrl += `&startDate=${startOfDay.toISOString()}&endDate=${endOfDay.toISOString()}`;
+  } 
+  else if (activeCategory.value === 'Haftalık') {
+    apiUrl += `&year=${selectedYear.value}&week=${selectedWeek.value}`;
+  }
+  else if (activeCategory.value === 'Aylık') {
+    const year = selectedMonthDate.value.getFullYear();
+    const month = selectedMonthDate.value.getMonth() + 1;
+    apiUrl += `&year=${year}&month=${month}`;
+  }
+
+  const res = await fetch(apiUrl);
   if (res.ok) {
     tasks.value = await res.json();
   }
 }
 
-function selectCategory(category) {
-  activeCategory.value = category;
-}
-function selectPopupCategory(category) {
-  newTaskCategory.value = category;
-}
-
-watch(activeCategory, fetchTasks);
-
-async function createTaskFromPopup() {
-    if (!newChallengeName.value.trim() || !userId) return;
-    
-    await createTaskApi(newChallengeName.value, newTaskCategory.value);
-    
-    isChallengePopupVisible.value = false;
-    newChallengeName.value = '';
-}
-
+// YENİ GÖREV OLUŞTURMA (SAAT BİLGİSİ HATASI İÇİN GÜNCELLENDİ)
 async function createTaskApi(title, category) {
+    const taskData = {
+        title: title,
+        category: category,
+        isCompleted: false,
+        // Artık görevin oluşturulduğu anın tam saatini (UTC) gönderiyoruz.
+        // Bu, "saat bilgisi hatalı" sorununu çözer.
+        createdAt: new Date().toISOString()
+    };
+
     const res = await fetch(`http://localhost:5000/api/users/${userId}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            title: title,
-            category: category,
-            isCompleted: false
-        })
+        body: JSON.stringify(taskData)
     });
+
     if (res.ok) {
-        // Eğer eklenen görev şu an görüntülenen kategorideyse, listeyi yenile
         if (category === activeCategory.value) {
             fetchTasks();
         }
@@ -141,36 +244,60 @@ async function createTaskApi(title, category) {
     }
 }
 
-// Bir görevin "tamamlandı" durumunu günceller
+// --- DİĞER FONKSİYONLAR ---
+
+async function createTaskFromPopup() {
+    if (!newChallengeName.value.trim() || !userId) return;
+    await createTaskApi(newChallengeName.value, newTaskCategory.value);
+    isChallengePopupVisible.value = false;
+    newChallengeName.value = '';
+}
+
+// GÖREV GÜNCELLEME (HATA DÜZELTİLDİ)
+// MEVCUT updateTask FONKSİYONUNU SİL VE YERİNE BU İKİ FONKSİYONU EKLE
+
+// Bu fonksiyon, checkbox'a tıklandığında çalışır.
+async function toggleTaskState(task) {
+  // Sadece durumu "Açık" (1) ise işlem yap
+  if (task.state === 1) {
+    // Durumu "İşaretli" (2) yap
+    const updatedTask = { ...task, state: 2 };
+    // Değişikliği backend'e kaydetmek için updateTask'ı çağır
+    await updateTask(updatedTask);
+  }
+}
+
+// Bu fonksiyon, değişikliği backend'e gönderir.
 async function updateTask(task) {
-  const res = await fetch(`http://localhost:5000/api/todos/${Id}`, {
+  const res = await fetch(`http://localhost:5000/api/todos/${task.id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task)
   });
+
+  if (res.ok) {
+    // Başarılı olursa listeyi yenile
+    fetchTasks();
+  } else {
+    alert("Görev güncellenemedi.");
+  }
 }
 
 async function deleteTask(taskId) {
-  // Onay yerine şifre sor
   const password = prompt('Görevi silmek için lütfen şifrenizi girin:');
-
-  // Eğer kullanıcı iptal ederse veya şifre girmezse işlemi durdur
-  if (password === null || password === '') {
-    return;
-  }
+  if (password === null || password === '') return;
 
   const res = await fetch(`http://localhost:5000/api/todos/${taskId}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    // Gövdeye şifreyi ve kullanıcı ID'sini ekle
     body: JSON.stringify({ 
       password: password,
-      userId: parseInt(userId) // userId'yi sayıya çevirerek gönder
+      userId: parseInt(userId)
     })
   });
 
   if (res.ok) {
-    fetchTasks(); // Görev listesini yenile
+    fetchTasks();
   } else if (res.status === 401) {
     alert('Geçersiz şifre! Görev silinemedi.');
   } else {
@@ -178,8 +305,205 @@ async function deleteTask(taskId) {
   }
 }
 
-onMounted(fetchTasks);
+function selectCategory(category) {
+  activeCategory.value = category;
+}
+
+function selectPopupCategory(category) {
+  newTaskCategory.value = category;
+}
+
+// --- İZLEYİCİLER (WATCHERS) ---
+
+// Kategori değiştiğinde görevleri yeniden getirir.
+// { immediate: true } sayesinde sayfa ilk yüklendiğinde de çalışır.
+watch(activeCategory, fetchTasks, { immediate: true });
+
+// Takvimde seçili tarih değiştiğinde görevleri yeniden getirir.
+watch(selectedDate, (newValue, oldValue) => {
+  if (newValue.toDateString() !== oldValue.toDateString()) {
+    if (activeCategory.value === 'Günlük') {
+      fetchTasks();
+    }
+  }
+});
+
+function showDetails(task) {
+  // formatYerelTarih fonksiyonunu kullanarak tarihi formatlayıp uyarıda gösteriyoruz
+  alert(`Oluşturulma Zamanı:\n${formatYerelTarih(task.createdAt)}`);
+}
+
+// --- YAŞAM DÖNGÜSÜ VE OLAY DİNLEYİCİLERİ ---
+
+// MEVCUT handleClickOutside FONKSİYONUNU SİL VE BUNU YAPIŞTIR
+
+const handleClickOutside = (event) => {
+  const isClickOnDarkModeButton = event.target.closest('.theme-toggle-button');
+  if (isClickOnDarkModeButton) return;
+
+  // Hangi panelin aktif olduğunu ve referanslarını tek bir yerden kontrol edelim
+  let activePanelRef = null;
+  let activeButtonRef = null;
+  let visibilityFlag = null;
+
+  if (activeCategory.value === 'Günlük') {
+    activePanelRef = calendarContainerRef;
+    activeButtonRef = calendarButtonRef;
+    visibilityFlag = isCalendarVisible;
+  } else if (activeCategory.value === 'Haftalık') {
+    activePanelRef = weekSelectorPanelRef;
+    activeButtonRef = weekSelectorButtonRef;
+    visibilityFlag = isWeekSelectorVisible;
+  } else if (activeCategory.value === 'Aylık') {
+    activePanelRef = monthSelectorPanelRef;
+    activeButtonRef = monthSelectorButtonRef;
+    visibilityFlag = isMonthSelectorVisible;
+  }
+
+  // Eğer aktif bir panel varsa ve görünür durumdaysa kontrolü yap
+  if (visibilityFlag && visibilityFlag.value) {
+    // Optional chaining (?.) kullanarak referansların null olma ihtimaline karşı kodu daha güvenli hale getirdik.
+    const isClickOnButton = activeButtonRef.value?.contains(event.target);
+    const isClickInPanel = activePanelRef.value?.contains(event.target);
+
+    if (!isClickOnButton && !isClickInPanel) {
+      visibilityFlag.value = false;
+    }
+  }
+};
+
+// onMounted ve onUnmounted (BİRLEŞTİRİLDİ VE TEMİZLENDİ)
+onMounted(() => {
+  // fetchTasks artık yukarıdaki 'watch' ile çağrıldığı için burada tekrar çağırmıyoruz.
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
+
+function formatYerelTarih(isoString) {
+  if (!isoString) return '';
+  const tarih = new Date(isoString);
+
+  return tarih.toLocaleString('tr-TR'); 
+}
+// ESKİ getCurrentWeekNumber FONKSİYONUNU SİLİP BUNU YAPIŞTIR
+
+function getCurrentWeekNumber() {
+  const d = new Date();
+  // Tarihin bir kopyasını oluştur, orijinalini değiştirme
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  // Haftanın Perşembe gününü bul (ISO 8601 standardı bunu gerektirir)
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  // Yılın ilk gününü bul
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  // İki tarih arasındaki gün farkını hesapla, 7'ye böl ve yukarı yuvarla
+  const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return weekNo;
+}
+function selectWeek(week) {
+  selectedWeek.value = week;
+  fetchTasks(); // Yeni haftanın görevlerini getir
+}
+
+function prevYear() {
+  selectedYear.value--;
+  fetchTasks(); // Yeni yılın görevlerini getir
+}
+
+function nextYear() {
+  selectedYear.value++;
+  fetchTasks(); // Yeni yılın görevlerini getir
+}
+function selectMonth(monthIndex) {
+  selectedMonthDate.value = new Date(selectedMonthDate.value.setMonth(monthIndex));
+  fetchTasks();
+}
+
+function prevYearForMonthView() {
+  const currentYear = selectedMonthDate.value.getFullYear();
+  selectedMonthDate.value = new Date(selectedMonthDate.value.setFullYear(currentYear - 1));
+  fetchTasks();
+}
+
+function nextYearForMonthView() {
+  const currentYear = selectedMonthDate.value.getFullYear();
+  selectedMonthDate.value = new Date(selectedMonthDate.value.setFullYear(currentYear + 1));
+  fetchTasks();
+}
 </script>
+
+<style>
+.calendar-container .vc-day.is-today:not(:has(.vc-highlights)) .vc-day-content {
+  background: var(--kutu-arkaplan);
+  font-weight: 700 !important;
+}
+
+.calendar-container .vc-container {
+  
+  /* Takvimin genel arkaplan rengi */
+  --vc-bg: var(--arka-plan); /* Örnek: Koyu Gri-Mavi */
+
+  /* Normal günlerin ve genel yazıların rengi */
+  --vc-color: var(--yazi-rengi);
+
+  --vc-weekday-color:var(--yazi-rengi); 
+  
+}
+.calendar-container .vc-arrow {
+  background-color: var(--buton-arkaplan);
+  color: var(--kutu-arkaplan);
+  border-radius: 16px;
+}
+.calendar-container .vc-arrow:hover {
+  background-color: var(--buton-hover-arkaplan);
+}
+.calendar-container .vc-title {
+  background-color: var(--buton-arkaplan);
+  color: var(--kutu-arkaplan);
+}
+.calendar-container .vc-title:hover {
+  background-color: var(--buton-hover-arkaplan);
+}
+
+.vc-nav-popover-container {
+  background-color: var(--arka-plan);
+  border: none;
+}
+
+.vc-nav-title {
+  color: var(--kutu-arkaplan);
+  background-color: var(--buton-arkaplan);
+}
+
+.vc-nav-title:hover {
+  background-color: var(--buton-hover-arkaplan);
+}
+
+.vc-nav-arrow {
+  color: var(--kutu-arkaplan);
+  background-color: var(--buton-arkaplan);
+}
+.vc-nav-arrow:hover {
+ background-color: var(--buton-hover-arkaplan);
+}
+
+.vc-nav-item {
+  background-color: var(--kutu-arkaplan);
+  color: var(--yazi-rengi);
+}
+.vc-nav-item:hover {
+  background-color: var(--buton-hover-arkaplan);
+}
+.vc-nav-item.is-focused {
+  background-color: var(--arka-plan);
+}
+.vc-nav-item.is-active {
+  background-color: var(--input-yazi);
+  color: var(--buton-yazi);
+}
+</style>
 
 <style scoped>
 .todo-page-container {
@@ -235,6 +559,41 @@ onMounted(fetchTasks);
   flex-grow: 1;
   padding: 2em 4em;
   overflow-y: auto;
+  display: flex; 
+  flex-direction: column;
+}
+
+.todos-panel-header { 
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1em;
+}
+
+.calendar-toggle-button {
+    background: transparent;
+    border: none;
+    color: var(--yazi-rengi);
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+}
+
+.calendar-toggle-button:hover {
+    background-color: var(--input-arkaplan);
+}
+
+.calendar-container { 
+    margin-bottom: 2em;
+    border: 1px solid var(--input-arkaplan);
+    border-radius: 8px;
+    padding: 10px;
 }
 
 .todo-form {
@@ -260,37 +619,82 @@ onMounted(fetchTasks);
 .todo-list li {
   display: flex;
   align-items: center;
+  justify-content: space-between; /* <-- YENİ EKLENDİ: Öğeleri iki yana yaslar */
   padding: 1em;
   border-bottom: 1px solid #eee;
+  gap: 1em; /* <-- YENİ EKLENDİ: Metin ve checkbox arasına boşluk bırakır */
 }
 .todo-list li.completed span {
   text-decoration: line-through;
   opacity: 0.6;
 }
 .todo-list li input[type="checkbox"] {
-  margin-right: 1em;
+  margin-left: 1em;
   width: 20px;
   height: 20px;
+  -webkit-appearance: none; /* Varsayılan tarayıcı stilini kaldırır */
+  -moz-appearance: none;    /* Varsayılan tarayıcı stilini kaldırır */
+  appearance: none;         /* Varsayılan tarayıcı stilini kaldırır */
+  border: 2px solid var(--arka-plan); /* Dış çizgi rengini temaya göre ayarla */
+  border-radius: 4px;       /* Hafif yuvarlak köşeler */
+  background-color:var(--selected-checkbox-bg) ; /* İç başlangıç rengini şeffaf yapar */
+  cursor: pointer;          /* Fare üzerine geldiğinde imleci değiştirir */
+  transition: background-color 0.2s ease, border-color 0.2s ease; /* Yumuşak geçişler */
+}
+.todo-list li input[type="checkbox"]:checked {
+  background-color:transparent;
+}
+
+/* İşaretli kutucuğun içindeki tik işareti için (isteğe bağlı, daha gelişmiş) */
+.todo-list li input[type="checkbox"]:checked::before {
+  content: '✓';
+  display: block;
+  font-size: 32px;
+  line-height: 0.1;
+  text-align: center;
+  color: green;
 }
 .todo-list li span {
   flex-grow: 1;
 }
 
+.task-title {
+  flex-grow: 1;
+}
+
+/* Sağdaki butonları gruplayan konteyner */
+.task-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Butonlar arasına boşluk koyar */
+}
 .delete-button {
   background: none;
   border: none;
   color: #e74c3c;
-  font-size: 20px;
+  font-size: 32px;
   cursor: pointer;
   visibility: hidden;
   opacity: 0;
   transition: opacity 0.2s ease;
 }
+.todo-list li:hover .details-button,
 .todo-list li:hover .delete-button {
   visibility: visible;
   opacity: 1;
 }
-
+.details-button {
+  background: none;
+  border: none;
+  color: var(--yazi-rengi);
+  font-size: 25px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0 5px;
+  visibility: hidden; 
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
 .no-project-selected {
   display: flex;
   justify-content: center;
@@ -379,4 +783,148 @@ onMounted(fetchTasks);
   border:none;
 }
 
+.week-selector-panel {
+  background-color: var(--arka-plan);
+  border-radius: 8px;
+  padding: 1em;
+  margin-bottom: 2em;
+}
+
+.year-navigator {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1em;
+}
+
+.year-navigator h3 {
+  margin: 0;
+  font-weight: 500;
+}
+
+.year-navigator button {
+  background: none;
+  border: none;
+  font-size: 2em;
+  color: var(--yazi-rengi);
+  cursor: pointer;
+  padding: 0 10px;
+}
+
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+  gap: 10px;
+}
+
+.week-item {
+  padding: 10px;
+  text-align: center;
+  border-radius: 6px;
+  cursor: pointer;
+  background-color: var(--input-arkaplan);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.week-item:hover {
+  background-color: var(--buton-arkaplan-hover);
+  color: var(--buton-yazi);
+}
+
+.week-item.selected {
+  background-color: var(--buton-arkaplan);
+  color: var(--buton-yazi);
+  font-weight: bold;
+  border-radius: 10px;
+}
+
+.week-selector-panel .year-navigator h3 {
+    color: var(--kutu-arkaplan);
+}
+.week-selector-panel .year-navigator {
+    background-color: var(--buton-arkaplan);
+    border-radius: 5px;
+}
+
+/* Yıl oklarının rengini değiştirir */
+.week-selector-panel .year-navigator button {
+    color: var(--kutu-arkaplan);
+}
+
+/* İçinde bulunduğumuz haftayı (mevcut hafta) sarı ile vurgular */
+.week-selector-panel .week-item.current {
+  background-color: var(--kutu-arkaplan);
+  color: #111827;
+}
+
+.week-selector-panel .week-item.selected {
+  background-color: var(--buton-arkaplan);
+  color: var(--buton-yazi);
+  font-weight: bold;
+}
+
+.month-selector-panel {
+  color: var(--yazi-rengi);
+  border-radius: 25px;
+  padding: 1em;
+  margin-bottom: 2em;
+  border-radius: 0;
+  border: 2px dashed var(--arka-plan);
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1em;
+}
+
+.month-item {
+  padding: 15px 10px;
+  text-align: center;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.month-item:hover {
+  color: var(--arka-plan);
+  font-weight: bold;
+}
+
+.month-selector-panel .year-navigator {
+  background-color: var(--arka-plan);
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+}
+
+.month-selector-panel .year-navigator h3 {
+    color: var(--kutu-arkaplan);
+}
+
+.month-selector-panel .year-navigator button {
+    color: var(--kutu-arkaplan);
+}
+
+.month-selector-panel .month-item.current {
+  background-color: var(--yazi-rengi);
+  color: var(--arka-plan); 
+  font-weight: bold;
+}
+
+.month-selector-panel .month-item.selected {
+  background-color: var(--kutu-arkaplan);
+  color: var(--yazi-rengi);
+  border-radius: 0;
+  border: 2px dashed var(--arka-plan);  
+}
+
+.todo-list li.disabled {
+  opacity: 0.5;
+}
+
+/* Temaya uygun soluk renk */
+:root.dark .todo-list li.disabled {
+    background-color: #2d3748;
+}
 </style>

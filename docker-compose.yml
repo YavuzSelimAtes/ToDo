@@ -7,6 +7,8 @@ services:
       POSTGRES_DB: todoapp
     ports:
       - "5432:5432"
+    volumes: # <-- 1. YENİ EKLENEN KISIM
+      - db-data:/var/lib/postgresql/data
 
   api:
     build: ./ToDoApi
@@ -37,3 +39,6 @@ services:
     depends_on:
       - db
 
+# Docker'ın verileri kalıcı olarak saklayacağı alanı burada tanımlıyoruz.
+volumes: # <-- 2. YENİ EKLENEN KISIM
+  db-data:

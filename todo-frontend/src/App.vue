@@ -1,7 +1,7 @@
 <template>
   <div id="app">
     <!-- Tema değiştirme düğmesi -->
-    <button @click="toggleTheme" class="theme-toggle-button">
+    <button @click.stop="toggleTheme" class="theme-toggle-button">
       <!-- isDarkMode durumuna göre Güneş veya Ay ikonu gösterir -->
       <span v-if="isDarkMode">☀️</span>
       <span v-else>🌙</span>
