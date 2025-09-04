@@ -43,6 +43,12 @@ namespace ToDoApi.Migrations
                     b.Property<int?>("ParentTaskId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("RepeatDayOfMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RepeatDayOfWeek")
+                        .HasColumnType("integer");
+
                     b.Property<int>("State")
                         .HasColumnType("integer");
 

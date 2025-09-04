@@ -20,7 +20,7 @@ builder.Services.AddHangfire(config => config
     }));
 
 builder.Services.AddDbContext<ToDoContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddCors(opts =>
 {
@@ -38,7 +38,10 @@ builder.Services.AddScoped<TaskStateService>();
 
 var app = builder.Build();
 
-app.UseHangfireDashboard();
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new AllowAllConnectionsFilter() }
+});
 RecurringJob.AddOrUpdate<TaskStateService>(
     "daily-task-processor", 
     service => service.ProcessDailyTasks(),
@@ -57,16 +60,14 @@ app.MapGet("/", () => "Todo API is running");
 app.MapGet("/api/users/{userId}/todos", async (
     int userId, 
     string? category, 
-    ToDoContext db, 
+    ToDoContext db,
     DateTime? startDate,
     DateTime? endDate,
     int? year, 
     int? week,
     int? month) =>
 {
-    var query = db.ToDoItems.AsQueryable().Where(t => t.UserId == userId);
-
-    query = query.Where(t => t.IsTemplate == false);
+    var query = db.ToDoItems.AsQueryable().Where(t => t.UserId == userId && t.IsTemplate == false);
 
     if (string.IsNullOrEmpty(category))
     {
@@ -79,40 +80,29 @@ app.MapGet("/api/users/{userId}/todos", async (
     {
         if (startDate.HasValue && endDate.HasValue)
         {
-            query = query.Where(t => t.CreatedAt >= startDate.Value && t.CreatedAt <= endDate.Value);
-        }
-        else
-        {
-             return Results.Ok(new List<ToDoItem>());
+            query = query.Where(t => t.CreatedAt >= startDate.Value.ToUniversalTime() && t.CreatedAt <= endDate.Value.ToUniversalTime());
         }
     }
     else if (category == "Haftalık")
     {
         if (year.HasValue && week.HasValue)
         {
-            var weekStartUnspecified = ISOWeek.ToDateTime(year.Value, week.Value, DayOfWeek.Monday);
-            var weekStart = DateTime.SpecifyKind(weekStartUnspecified, DateTimeKind.Utc);
-            var weekEnd = weekStart.AddDays(7);
-            
-            query = query.Where(t => t.CreatedAt >= weekStart && t.CreatedAt < weekEnd);
-        }
-        else
-        {
-            return Results.Ok(new List<ToDoItem>());
+            var monday = ISOWeek.ToDateTime(year.Value, week.Value, DayOfWeek.Monday);
+            var startOfDayUtc = new DateTime(monday.Year, monday.Month, monday.Day, 0, 0, 0, DateTimeKind.Utc);
+            var endOfDayUtc = startOfDayUtc.AddDays(1);
+
+            query = query.Where(t => t.CreatedAt >= startOfDayUtc && t.CreatedAt < endOfDayUtc);
         }
     }
     else if (category == "Aylık")
     {
         if (year.HasValue && month.HasValue)
         {
-            var monthStart = new DateTime(year.Value, month.Value, 1, 0, 0, 0, DateTimeKind.Utc);
-            var monthEnd = monthStart.AddMonths(1);
-            
-            query = query.Where(t => t.CreatedAt >= monthStart && t.CreatedAt < monthEnd);
-        }
-        else
-        {
-            return Results.Ok(new List<ToDoItem>());
+            var firstDay = new DateTime(year.Value, month.Value, 1);
+            var startOfDayUtc = new DateTime(firstDay.Year, firstDay.Month, firstDay.Day, 0, 0, 0, DateTimeKind.Utc);
+            var endOfDayUtc = startOfDayUtc.AddDays(1);
+
+            query = query.Where(t => t.CreatedAt >= startOfDayUtc && t.CreatedAt < endOfDayUtc);
         }
     }
 
@@ -132,46 +122,82 @@ app.MapGet("/api/users/{userId}/todos", async (
 app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, ToDoContext db) =>
 {
     var user = await db.Users.FindAsync(userId);
-    if (user is null) return Results.NotFound("Kullanıcı bulunamadı.");
+    if (user is null)
+    {
+        return Results.NotFound("Kullanıcı bulunamadı.");
+    }
 
-    // Tüm kategoriler için bir ana ŞABLON oluşturulur.
+    // Adım 1: Ana şablonu (template) oluştur
     var templateTask = new ToDoItem
     {
         Title = dto.Title,
         Category = dto.Category,
         CreatedAt = DateTime.UtcNow,
-        State = State.Kapali, // Şablonların durumu her zaman Kapalı'dır.
-        IsTemplate = true,    // Bu bir şablon.
-        ParentTaskId = null,
+        State = State.Kapali,
+        IsTemplate = true,
         UserId = userId,
-        User = user
+        RepeatDayOfWeek = null,
+        RepeatDayOfMonth = null
     };
     db.ToDoItems.Add(templateTask);
+    await db.SaveChangesAsync();
 
-    // SADECE "Günlük" görevler için ilk gün kopyası hemen oluşturulur.
-    // Haftalık ve Aylık görevlerin ilk kopyaları Hangfire tarafından oluşturulacak.
-    if (dto.Category == "Günlük")
+    // Adım 2: İlk instance tarihini belirle
+    var now = dto.CreatedAt.ToUniversalTime();
+    DateTime instanceDate = now.Date;
+
+    if (dto.Category == "Haftalık")
     {
-        await db.SaveChangesAsync(); // Şablonun ID'sini almak için kaydet.
-
-        var firstInstance = new ToDoItem
-        {
-            Title = dto.Title,
-            Category = dto.Category,
-            CreatedAt = DateTime.UtcNow,
-            State = State.Kapali, // İlk gün kopyası Kapalı başlar.
-            IsTemplate = false,   // Bu bir kopya.
-            ParentTaskId = templateTask.Id, // Ana şablonuna bağla.
-            UserId = userId,
-            User = user
-        };
-        db.ToDoItems.Add(firstInstance);
+        int diff = (7 + (int)now.DayOfWeek - (int)DayOfWeek.Monday) % 7;
+        instanceDate = now.AddDays(-1 * diff).Date;
+    }
+    else if (dto.Category == "Aylık")
+    {
+        instanceDate = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
     }
 
-    await db.SaveChangesAsync(); // Son değişiklikleri kaydet.
+    // Adım 3: İlk instance oluştur
+    var firstInstance = new ToDoItem
+    {
+        Title = dto.Title,
+        Category = dto.Category,
+        CreatedAt = instanceDate,
+        State = State.Kapali,
+        IsTemplate = false,
+        ParentTaskId = templateTask.Id,
+        UserId = userId
+    };
+    db.ToDoItems.Add(firstInstance);
+    await db.SaveChangesAsync();
 
-    return Results.Ok(new { message = "Görev şablonu başarıyla oluşturuldu." });
+    // Adım 4: Şablonun tekrar gününü ilk instance’a göre güncelle
+    if (dto.Category == "Haftalık")
+    {
+        templateTask.RepeatDayOfWeek = (int)instanceDate.DayOfWeek;
+    }
+    else if (dto.Category == "Aylık")
+    {
+        templateTask.RepeatDayOfMonth = instanceDate.Day;
+    }
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "Görev şablonu ve ilk örnek başarıyla oluşturuldu." });
 });
+// CreateInstance metodunun imzasını ve içeriğini güncelliyoruz.
+static ToDoItem CreateInstance(ToDoItem template, DateTime creationDate, ToDoUser user)
+{
+    return new ToDoItem
+    {
+        Title = template.Title,
+        Category = template.Category,
+        CreatedAt = creationDate,
+        State = State.Kapali,
+        IsTemplate = false,
+        ParentTaskId = template.Id,
+        UserId = template.UserId,
+        User = user // <-- YENİ EKLENDİ: İlişkiyi net bir şekilde kuruyoruz.
+    };
+}
 
 // Program.cs dosyasında MapPost'un altına ekle
 
@@ -194,7 +220,7 @@ app.MapPut("/api/todos/{id:int}", async (int id, TaskDto updatedTask, ToDoContex
 
 app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [FromBody] DeleteTaskDto dto, ToDoContext db) =>
 {
-    // 1. Şifre ve Kullanıcı Doğrulaması (Değişiklik yok)
+    // 1. Şifre ve Kullanıcı Doğrulaması
     var user = await db.Users.FindAsync(dto.UserId);
     if (user is null) return Results.NotFound("Kullanıcı bulunamadı.");
 
@@ -205,30 +231,26 @@ app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [Fr
     if (taskInstance is null) return Results.NotFound("Görev bulunamadı.");
     if (taskInstance.UserId != dto.UserId) return Results.Forbid();
 
-    // 2. Ana Şablonun ID'sini Bul (Değişiklik yok)
+    // 2. Ana Şablonun ID'sini Bul
     int? templateIdToDelete = taskInstance.IsTemplate ? taskInstance.Id : taskInstance.ParentTaskId;
     if (templateIdToDelete is null)
     {
-        // Eğer bir şablona bağlı değilse, sadece o tek görevi sil ve çık.
         db.ToDoItems.Remove(taskInstance);
         await db.SaveChangesAsync();
         return Results.NoContent();
     }
 
-    // --- YENİ SİLME MANTIĞI ---
-    // 3. Silinecek Görevleri Belirle
+    // --- DÜZELTİLMİŞ SİLME MANTIĞI ---
     var today = DateTime.UtcNow.Date;
 
-    // Ana şablonu VE bugüne veya geleceğe ait olan tüm kopyaları bul.
-    // Geçmişteki kopyalara (eskiler) dokunma.
     var tasksToDelete = await db.ToDoItems
         .Where(t => 
-            t.Id == templateIdToDelete || // Ana şablonun kendisi
-            (t.ParentTaskId == templateIdToDelete && t.CreatedAt.Date >= today) // Bugünden itibaren oluşturulmuş kopyalar
+            t.Id == templateIdToDelete || // 1. Ana şablonun kendisi
+            (t.ParentTaskId == templateIdToDelete && t.CreatedAt.Date >= today) || // 2. Bugünden itibaren oluşturulmuş kopyalar
+            t.Id == instanceId // 3. (YENİ EKLENDİ) Üzerine tıklanan kopyanın kendisi
         )
         .ToListAsync();
 
-    // 4. Bulunan Görevleri Sil
     if (tasksToDelete.Any())
     {
         db.ToDoItems.RemoveRange(tasksToDelete);
@@ -238,7 +260,6 @@ app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [Fr
     return Results.NoContent();
 });
 
-// AuthController gibi diğer controller'ları etkinleştirir
 app.MapControllers();
 
 app.Run();

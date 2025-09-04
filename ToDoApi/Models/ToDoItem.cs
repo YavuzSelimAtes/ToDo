@@ -9,6 +9,8 @@ namespace ToDoApi.Models
         public string Title { get; set; }
         public State State { get; set; }
         public DateTime CreatedAt { get; set; }
+        public int? RepeatDayOfWeek { get; set; }
+        public int? RepeatDayOfMonth { get; set; }
 
         public required string Category { get; set; }
         public bool IsTemplate { get; set; } = false;

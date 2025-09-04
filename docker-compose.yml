@@ -7,13 +7,19 @@ services:
       POSTGRES_DB: todoapp
     ports:
       - "5432:5432"
-    volumes: # <-- 1. YENİ EKLENEN KISIM
+    volumes:
       - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d todoapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
     build: ./ToDoApi
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "5000:80"
     environment:
@@ -37,8 +43,8 @@ services:
     volumes:
       - ./ToDoApi:/app
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
-# Docker'ın verileri kalıcı olarak saklayacağı alanı burada tanımlıyoruz.
-volumes: # <-- 2. YENİ EKLENEN KISIM
+volumes:
   db-data:

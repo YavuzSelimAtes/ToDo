@@ -47,9 +47,6 @@
             {{ selectedMonthDate.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }) }}
           </span>
         </h2>
-        <div v-if="isLoading" class="loading-spinner">
-         <div></div><div></div><div></div><div></div>
-        </div>
         <button v-if="activeCategory === 'Günlük'" @click="isCalendarVisible = !isCalendarVisible" class="calendar-toggle-button" ref="calendarButtonRef">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8 4H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/>
@@ -125,6 +122,10 @@
       </div>
     </div>
 
+    <div v-if="isLoading" class="loading-spinner">
+         <div></div><div></div><div></div><div></div>
+        </div>
+
     <div v-if="isChallengePopupVisible" class="popup-overlay" @click.self="isChallengePopupVisible = false">
       <div class="popup-box tema-kutusu">
         <h2>Ne Yapmaman Gerek</h2>
@@ -162,7 +163,6 @@ import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { isDarkMode } from '../themeStore.js';
 import 'v-calendar/style.css';
 import { DatePicker as VDatePicker } from 'v-calendar';
-import { useToast } from 'vue-toastification';
 
 // --- Değişken Tanımlamaları ---
 const tasks = ref([]);
@@ -189,7 +189,6 @@ const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz',
 const currentMonthIndex = ref(new Date().getMonth());
 const currentYear = ref(new Date().getFullYear());
 const isLoading = ref(false);
-const toast = useToast();
 
 // --- API Fonksiyonları ---
 
@@ -221,13 +220,12 @@ async function fetchTasks() {
       tasks.value = await res.json();
     }
   } catch (error) {
-    toast.error("Görevler yüklenirken bir hata oluştu.");
+    alert("Görevler yüklenirken bir hata oluştu.");
   } finally {
     isLoading.value = false; // Yükleme bitti (başarılı ya da hatalı)
   }
 }
 
-// ALERT YERİNE TOAST BİLDİRİMİ KULLANACAK ŞEKİLDE GÜNCELLENDİ
 async function createTaskApi(title, category) {
     const taskData = {
         title: title,
@@ -246,12 +244,11 @@ async function createTaskApi(title, category) {
         }
         return true; // Başarılı olduğunu belirtmek için true dön
     } else {
-        toast.error('Görev oluşturulamadı.');
+        alert('Görev oluşturulamadı');
         return false; // Başarısız olduğunu belirt
     }
 }
 
-// ALERT YERİNE TOAST BİLDİRİMİ KULLANACAK ŞEKİLDE GÜNCELLENDİ
 async function createTaskFromPopup() {
     if (!newChallengeName.value.trim() || !userId) return;
     
@@ -260,14 +257,12 @@ async function createTaskFromPopup() {
     if (success) {
         isChallengePopupVisible.value = false;
         newChallengeName.value = '';
-        toast.success(`'${newTaskCategory.value}' görevin başarıyla oluşturuldu ve yarın aktif olacak!`);
         if (newTaskCategory.value !== activeCategory.value) {
             selectCategory(newTaskCategory.value);
         }
     }
 }
 
-// ALERT YERİNE TOAST BİLDİRİMİ KULLANACAK ŞEKİLDE GÜNCELLENDİ
 async function deleteTask(taskId) {
   const promptMessage = 'Bu alışkanlığı ve ilgili tüm geçmiş/gelecek görevleri kalıcı olarak silmek istediğinizden emin misiniz?\n\nLütfen şifrenizi girin:';
   const password = prompt(promptMessage);
@@ -284,12 +279,12 @@ async function deleteTask(taskId) {
   });
 
   if (res.ok) {
-    toast.success("Alışkanlık başarıyla silindi.");
+    alert("Alışkanlık başarıyla silindi.");
     fetchTasks();
   } else if (res.status === 401) {
-    toast.error('Geçersiz şifre! Görev silinemedi.');
+    alert('Geçersiz şifre! Görev silinemedi.');
   } else {
-    toast.error('Görev silinirken bir hata oluştu.');
+    alert('Görev silinemedi.');
   }
 }
 
@@ -945,7 +940,7 @@ function nextYearForMonthView() {
     background-color: #2d3748;
 }
 .loading-spinner {
-  display: inline-block;
+  display: flex;
   position: relative;
   width: 80px;
   height: 80px;
