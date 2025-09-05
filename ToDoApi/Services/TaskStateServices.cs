@@ -28,7 +28,7 @@ namespace ToDoApi.Services
             //var today = DateTime.UtcNow.Date; // <<-- ORİJİNAL KOD (Normal çalışma için bu satır aktif olmalı)
             //var today = DateTime.UtcNow.Date.AddDays(1);    // YARINI test etmek için bu satırı kullanın
             //var today = DateTime.UtcNow.Date.AddDays(14);    // 1 HAFTA SONRASINI test etmek için bu satırı kullanın
-            var today = DateTime.UtcNow.Date.AddMonths(2);  // 1 AY SONRASINI test etmek için bu satırı kullanın
+            var today = DateTime.UtcNow.Date.AddMonths(1);  // 1 AY SONRASINI test etmek için bu satırı kullanın
 
             _logger.LogInformation("Görev durumu işleme süreci başladı. Simüle edilen tarih (UTC): {Today}", today);
 

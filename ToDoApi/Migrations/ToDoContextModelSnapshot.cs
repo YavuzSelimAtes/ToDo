@@ -74,13 +74,34 @@ namespace ToDoApi.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("DailyTasks")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DailyTasksCompleted")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MonthlyTasks")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MonthlyTasksCompleted")
+                        .HasColumnType("integer");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("Score")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("WeeklyTasks")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WeeklyTasksCompleted")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 

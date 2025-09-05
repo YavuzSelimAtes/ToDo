@@ -38,7 +38,7 @@ builder.Services.AddScoped<TaskStateService>();
 
 var app = builder.Build();
 
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
+app.UseHangfireDashboard("/Hangfire", new DashboardOptions
 {
     Authorization = new[] { new AllowAllConnectionsFilter() }
 });
@@ -58,12 +58,12 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/", () => "Todo API is running");
 
 app.MapGet("/api/users/{userId}/todos", async (
-    int userId, 
-    string? category, 
+    int userId,
+    string? category,
     ToDoContext db,
     DateTime? startDate,
     DateTime? endDate,
-    int? year, 
+    int? year,
     int? week,
     int? month) =>
 {
@@ -107,7 +107,8 @@ app.MapGet("/api/users/{userId}/todos", async (
     }
 
     var tasks = await query.OrderBy(t => t.CreatedAt)
-                           .Select(t => new TaskDto {
+                           .Select(t => new TaskDto
+                           {
                                Id = t.Id,
                                Title = t.Title,
                                Category = t.Category,
@@ -115,8 +116,33 @@ app.MapGet("/api/users/{userId}/todos", async (
                                CreatedAt = t.CreatedAt,
                                UserId = t.UserId
                            }).ToListAsync();
-    
+
     return Results.Ok(tasks);
+});
+
+app.MapGet("/api/users/{userId}", async (int userId, ToDoContext db) =>
+{
+    var user = await db.Users.FindAsync(userId);
+
+    if (user is null)
+    {
+        return Results.NotFound("Kullanıcı bulunamadı.");
+    }
+
+    var userDto = new UserDto
+    {
+        Id = user.Id,
+        Username = user.Username,
+        Score = user.Score,
+        DailyTasks = user.DailyTasks,
+        WeeklyTasks = user.WeeklyTasks,
+        MonthlyTasks = user.MonthlyTasks,
+        DailyTasksCompleted = user.DailyTasksCompleted,
+        WeeklyTasksCompleted = user.WeeklyTasksCompleted,
+        MonthlyTasksCompleted = user.MonthlyTasksCompleted
+    };
+
+    return Results.Ok(userDto);
 });
 
 app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, ToDoContext db) =>
@@ -240,7 +266,6 @@ app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [Fr
         return Results.NoContent();
     }
 
-    // --- DÜZELTİLMİŞ SİLME MANTIĞI ---
     var today = DateTime.UtcNow.Date;
 
     var tasksToDelete = await db.ToDoItems

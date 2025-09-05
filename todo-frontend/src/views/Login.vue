@@ -78,7 +78,7 @@ async function register() {
   // --- GÜVENLİK KONTROLÜ EKLENDİ ---
   if (!regUsername.value.trim() || !regPassword.value.trim()) {
     alert('Kullanıcı adı ve şifre alanları boş bırakılamaz!');
-    return; // Fonksiyonun devam etmesini engelle
+    return;
   }
 
   const res = await fetch('http://localhost:5000/api/auth/register', {

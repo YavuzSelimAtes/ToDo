@@ -1,25 +1,22 @@
-# .NET 8 SDK imajını temel alıyoruz, çünkü debug için SDK gerekli.
+# Debug için SDK imajı kullanıyoruz (runtime değil!)
 FROM mcr.microsoft.com/dotnet/sdk:8.0
 
-# VS Code'un uzaktan bağlanacağı .NET Debugger'ını (vsdbg) indirip kuruyoruz.
-RUN curl -sSL https://aka.ms/getvsdbgsh | /bin/sh /dev/stdin -v latest -l ~/vsdbg
+# VS Code’un kullanacağı debugger (vsdbg) kur
+RUN apt-get update && apt-get install -y curl unzip \
+    && curl -sSL https://aka.ms/getvsdbgsh | bash /dev/stdin -v latest -l /root/vsdbg
 
-# Uygulamanın çalışacağı klasörü belirliyoruz.
+# Çalışma dizini
 WORKDIR /app
 
-# DÜZELTME: Proje dosyasını doğru yerden (ToDoApi klasöründen) kopyalıyoruz.
+# Proje dosyasını kopyala ve restore yap
 COPY ToDoApi/*.csproj ./
-
-# Artık proje dosyası doğru yerde olduğu için restore işlemi başarılı olacaktır.
 RUN dotnet restore
 
-# DÜZELTME: Tüm kaynak kodlarını kopyalamak için sadece ToDoApi klasörünün içeriğini kopyalıyoruz.
-COPY ToDoApi/ .
+# Kaynak kodlarını kopyala
+COPY ToDoApi/ ./
 
-# Uygulamanın çalışacağı portu dışarıya açıyoruz.
+# Uygulamanın dışa açılacağı port
 EXPOSE 80
 
-# Container başladığında uygulamayı debug modunda çalıştıracak komut.
-# `dotnet run`, değişiklikleri algılayıp otomatik yeniden derleme yapar.
-CMD ["dotnet", "run", "--urls", "http://*:80"]
-
+# Container boşta beklesin (debugger bağlanacak)
+CMD ["sleep", "infinity"]

@@ -1,27 +1,36 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": ".NET Core Attach (Docker)",
-            "type": "coreclr",
-            "request": "attach",
-            // DÜZELTME: "processName" yerine tekrar "processId" kullanıyoruz.
-            // Bu, VS Code'un bize hangi işleme bağlanacağımızı sormasını sağlar.
-            "processId": "${command:pickRemoteProcess}",
-            "pipeTransport": {
-                "pipeCwd": "${workspaceFolder}",
-                "pipeProgram": "docker",
-                "pipeArgs": [
-                    "exec",
-                    "-i",
-                    "todo-api-dev"
-                ],
-                "debuggerPath": "/root/vsdbg/vsdbg",
-                "quoteArgs": false
-            },
-            "sourceFileMap": {
-                "/app": "${workspaceFolder}/ToDoApi"
-            }
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "nottodo",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceRoot}/ToDoApi/bin/Debug/net8.0/ToDoApi.dll",
+      "args": [],
+      "cwd": "${workspaceRoot}/ToDoApi",
+      "preLaunchTask": "build ToDoApi",
+      "stopAtEntry": false,
+      "launchBrowser": {
+        "enabled": false,
+        "args": "${auto-detect-url}",
+        "windows": {
+          "command": "cmd.exe",
+          "args": "/C start ${auto-detect-url}"
+        },
+        "osx": {
+          "command": "open"
+        },
+        "linux": {
+          "command": "xdg-open"
         }
-    ]
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5106"
+      },
+      "sourceFileMap": {
+        "/Views": "${workspaceRoot}/Views"
+      }
+    }
+  ]
 }

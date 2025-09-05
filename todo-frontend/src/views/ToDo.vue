@@ -1,4 +1,28 @@
 <template>
+<div>
+  <transition name="slide-fade">
+      <!-- Kenar çubuğu (Sidebar) -->
+      <div v-if="isSidebarOpen" class="sidebar">
+        <div class="user-profile">
+          <h3 v-if="user" class="username">{{ user.username }}</h3>
+          <div class="task-stats">
+            <button class="stat-button">
+              <span>Günlük: {{user.DailyTasks}}</span>
+            </button>
+            <button class="stat-button">
+              <span>Haftalık: {{user.WeeklyTasks}}</span>
+            </button>
+            <button class="stat-button">
+              <span>Aylık: {{user.MonthlyTasks}}</span>
+            </button>
+          </div>    
+          <div class="score-container">
+            <button class="score-button">Skor: {{user.Score}}</button>
+          </div>      
+        </div>
+      </div>
+  </transition>
+  <div v-if="isSidebarOpen" class="sidebar-overlay" @click="isSidebarOpen = false"></div>
   <div class="todo-page-container">
     <div class="daily-panel">
       <div class="projects-header">
@@ -29,6 +53,15 @@
         >
           Aylık
         </button>
+      </div>
+      <div class="sidebar-toggle-container">
+        <button @click="isSidebarOpen = !isSidebarOpen" class="sidebar-toggle-button">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
       </div>
     </div>
 
@@ -156,6 +189,7 @@
       </div>
     </div>
   </div>
+</div>  
 </template>
 
 <script setup>
@@ -166,6 +200,7 @@ import { DatePicker as VDatePicker } from 'v-calendar';
 
 // --- Değişken Tanımlamaları ---
 const tasks = ref([]);
+const user = ref(null);
 const activeCategory = ref('Günlük');
 const newTaskCategory = ref('Günlük');
 const newChallengeName = ref('');
@@ -189,6 +224,7 @@ const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz',
 const currentMonthIndex = ref(new Date().getMonth());
 const currentYear = ref(new Date().getFullYear());
 const isLoading = ref(false);
+const isSidebarOpen = ref(false);
 
 // --- API Fonksiyonları ---
 
@@ -223,6 +259,21 @@ async function fetchTasks() {
     alert("Görevler yüklenirken bir hata oluştu.");
   } finally {
     isLoading.value = false; // Yükleme bitti (başarılı ya da hatalı)
+  }
+}
+
+async function fetchUser() {
+  if (!userId) return;
+  try {
+    const res = await fetch(`http://localhost:5000/api/users/${userId}`);
+    if (res.ok) {
+      user.value = await res.json();
+    } else {
+      console.error("Kullanıcı bilgisi alınamadı.");
+      // İsteğe bağlı: Kullanıcı bulunamazsa çıkış yaptırılabilir.
+    }
+  } catch (error) {
+    console.error("Kullanıcı bilgisi alınırken hata:", error);
   }
 }
 
@@ -386,7 +437,7 @@ const handleClickOutside = (event) => {
 
 // onMounted ve onUnmounted (BİRLEŞTİRİLDİ VE TEMİZLENDİ)
 onMounted(() => {
-  // fetchTasks artık yukarıdaki 'watch' ile çağrıldığı için burada tekrar çağırmıyoruz.
+  fetchUser(); // YENİ: Bileşen yüklendiğinde kullanıcı bilgilerini de getir
   document.addEventListener('click', handleClickOutside);
 });
 
@@ -534,6 +585,32 @@ function nextYearForMonthView() {
   border-right: 1px solid #e0e0e0;
   display: flex;
   flex-direction: column;
+}
+
+.sidebar-toggle-container {
+  margin-top: auto; /* Panelin en altına iter */
+  padding-top: 2em; /* Üstündeki elemanlarla boşluk bırakır */
+}
+
+.sidebar-toggle-button {
+  background: var(--kutu-arkaplan);
+  border: none;
+  color: var(--buton-yazi);
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.sidebar-toggle-button:hover {
+  background-color: rgba(254, 227, 19, 1);
+}
+
+.sidebar-toggle-button svg {
+  stroke: var(--buton-yazi);
 }
 
 .projects-header {
@@ -965,4 +1042,132 @@ function nextYearForMonthView() {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0, 0.6);
+  z-index: 999;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 300px;
+  height: 100vh;
+  background-color: var(--kutu-arkaplan);
+  color: var(--yazi-rengi);
+  padding: 2em;
+  z-index: 1000; /* Her şeyin en üstünde */
+  display: flex;
+  flex-direction: column;
+  transform: translateX(0); 
+  justify-content: center;
+  align-items: center;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2em;
+  border-bottom: 1px solid var(--input-arkaplan);
+  padding-bottom: 1em;
+}
+
+.sidebar-header h3 {
+  margin: 0;
+}
+
+.close-sidebar-button {
+  background: none;
+  border: none;
+  color: var(--yazi-rengi);
+  font-size: 2rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.user-profile {
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4em;
+}
+
+.task-stats {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 15px; 
+}
+
+.stat-button {
+  background-color: var(--kutu-arkaplan);
+  color: var(--buton-yazi);
+  padding: 18px 15px;
+  border: 1px solid var(--yazi-rengi);
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 1.2em;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-shadow: 0 5px 5px rgba(0,0,0,0.2);
+}
+
+.stat-button:hover {
+  transform: translateY(-12px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.stat-button span {
+  font-size: 0.8em;
+  margin-top: 5px;
+}
+
+.score-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.score-button {
+  background-color: var(--kutu-arkaplan);
+  color: var(--buton-yazi);
+  border: 1px solid var(--yazi-rengi);
+  border-radius: 20px;
+  padding: 12px 30px;
+  font-size: 1.2em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 5px 4px rgba(0,0,0,0.2);
+}
+
+.score-button:hover {
+  transform: scale(1.08);
+  box-shadow: 0 3px 4px rgba(0,0,0,0.4);
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateX(-100%);
+}
+
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
 </style>
