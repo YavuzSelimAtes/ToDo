@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: mysecretpassword
       POSTGRES_DB: todoapp
     ports:
-      - "5432:5432"
+      - "15432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -25,6 +25,7 @@ services:
     environment:
       - ASPNETCORE_URLS=http://+:80
       - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=todoapp;Username=postgres;Password=mysecretpassword;SSL Mode=Disable
 
   frontend:
     build: ./todo-frontend
