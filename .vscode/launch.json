@@ -26,7 +26,8 @@
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:5106"
+        "ASPNETCORE_URLS": "http://localhost:5106",
+        "ConnectionStrings__DefaultConnection": "Host=localhost;Port=15432;Database=todoapp;Username=postgres;Password=mysecretpassword;SSL Mode=Disable"
       },
       "sourceFileMap": {
         "/Views": "${workspaceRoot}/Views"

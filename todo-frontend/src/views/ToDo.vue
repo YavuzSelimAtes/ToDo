@@ -7,17 +7,17 @@
           <h3 v-if="user" class="username">{{ user.username }}</h3>
           <div class="task-stats">
             <button class="stat-button">
-              <span>Günlük: {{user.DailyTasks}}</span>
+              <span>Günlük: {{user.dailyTasks}}</span>
             </button>
             <button class="stat-button">
-              <span>Haftalık: {{user.WeeklyTasks}}</span>
+              <span>Haftalık: {{user.weeklyTasks}}</span>
             </button>
             <button class="stat-button">
-              <span>Aylık: {{user.MonthlyTasks}}</span>
+              <span>Aylık: {{user.monthlyTasks}}</span>
             </button>
           </div>    
           <div class="score-container">
-            <button class="score-button">Skor: {{user.Score}}</button>
+            <button class="score-button">Skor: {{user.score}}</button>
           </div>      
         </div>
       </div>
@@ -293,22 +293,25 @@ async function createTaskApi(title, category) {
         if (category === activeCategory.value) {
             fetchTasks();
         }
-        return true; // Başarılı olduğunu belirtmek için true dön
+        return await res.json(); 
     } else {
         alert('Görev oluşturulamadı');
-        return false; // Başarısız olduğunu belirt
+        return false;
     }
 }
 
 async function createTaskFromPopup() {
     if (!newChallengeName.value.trim() || !userId) return;
     
-    const success = await createTaskApi(newChallengeName.value, newTaskCategory.value);
+    const updatedUser = await createTaskApi(newChallengeName.value, newTaskCategory.value);
     
-    if (success) {
+    if (updatedUser) {
         isChallengePopupVisible.value = false;
         newChallengeName.value = '';
+        user.value = updatedUser;
         if (newTaskCategory.value !== activeCategory.value) {
+            selectCategory(newTaskCategory.value);
+        }else {
             selectCategory(newTaskCategory.value);
         }
     }
@@ -332,6 +335,8 @@ async function deleteTask(taskId) {
   if (res.ok) {
     alert("Alışkanlık başarıyla silindi.");
     fetchTasks();
+    const updatedUser = await res.json();
+    user.value = updatedUser;
   } else if (res.status === 401) {
     alert('Geçersiz şifre! Görev silinemedi.');
   } else {
@@ -361,7 +366,8 @@ async function updateTask(task) {
   });
 
   if (res.ok) {
-    // Başarılı olursa listeyi yenile
+    const updatedUser = await res.json();
+    user.value = updatedUser;
     fetchTasks();
   } else {
     alert("Görev güncellenemedi.");

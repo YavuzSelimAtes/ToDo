@@ -9,18 +9,24 @@ using Hangfire.PostgreSql;
 using System.Globalization; 
 
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = "Host=db;Database=todoapp;Username=postgres;Password=mysecretpassword";
+var cs = builder.Configuration.GetConnectionString("DefaultConnection")
+         ?? throw new InvalidOperationException("Missing ConnectionStrings:DefaultConnection");
+
+var __builder = new Npgsql.NpgsqlConnectionStringBuilder(cs);
+Console.WriteLine($"[DB DEBUG] Host={__builder.Host}; Port={__builder.Port}; Database={__builder.Database}; Username={__builder.Username}; SSL={__builder.SslMode}");
+
+
 
 builder.Services.AddHangfire(config => config
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
     .UsePostgreSqlStorage(options => 
     {
-        options.UseNpgsqlConnection(connectionString);
+        options.UseNpgsqlConnection(cs);
     }));
 
 builder.Services.AddDbContext<ToDoContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(cs));
 
 builder.Services.AddCors(opts =>
 {
@@ -38,10 +44,17 @@ builder.Services.AddScoped<TaskStateService>();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ToDoContext>();
+    db.Database.Migrate();
+}
+
 app.UseHangfireDashboard("/Hangfire", new DashboardOptions
 {
     Authorization = new[] { new AllowAllConnectionsFilter() }
 });
+
 RecurringJob.AddOrUpdate<TaskStateService>(
     "daily-task-processor", 
     service => service.ProcessDailyTasks(),
@@ -153,7 +166,19 @@ app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, T
         return Results.NotFound("Kullanıcı bulunamadı.");
     }
 
-    // Adım 1: Ana şablonu (template) oluştur
+    switch (dto.Category)
+    {
+        case "Günlük":
+            user.DailyTasks++;
+            break;
+        case "Haftalık":
+            user.WeeklyTasks++;
+            break;
+        case "Aylık":
+            user.MonthlyTasks++;
+            break;
+    }
+
     var templateTask = new ToDoItem
     {
         Title = dto.Title,
@@ -168,7 +193,7 @@ app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, T
     db.ToDoItems.Add(templateTask);
     await db.SaveChangesAsync();
 
-    // Adım 2: İlk instance tarihini belirle
+    
     var now = dto.CreatedAt.ToUniversalTime();
     DateTime instanceDate = now.Date;
 
@@ -182,7 +207,6 @@ app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, T
         instanceDate = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
     }
 
-    // Adım 3: İlk instance oluştur
     var firstInstance = new ToDoItem
     {
         Title = dto.Title,
@@ -196,7 +220,6 @@ app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, T
     db.ToDoItems.Add(firstInstance);
     await db.SaveChangesAsync();
 
-    // Adım 4: Şablonun tekrar gününü ilk instance’a göre güncelle
     if (dto.Category == "Haftalık")
     {
         templateTask.RepeatDayOfWeek = (int)instanceDate.DayOfWeek;
@@ -207,9 +230,23 @@ app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, T
     }
     await db.SaveChangesAsync();
 
-    return Results.Ok(new { message = "Görev şablonu ve ilk örnek başarıyla oluşturuldu." });
+    var userDto = new UserDto
+    {
+        Id = user.Id,
+        Username = user.Username,
+        Score = user.Score,
+        DailyTasks = user.DailyTasks,
+        WeeklyTasks = user.WeeklyTasks,
+        MonthlyTasks = user.MonthlyTasks,
+        DailyTasksCompleted = user.DailyTasksCompleted,
+        WeeklyTasksCompleted = user.WeeklyTasksCompleted,
+        MonthlyTasksCompleted = user.MonthlyTasksCompleted
+    };
+
+    return Results.Ok(userDto); 
 });
-// CreateInstance metodunun imzasını ve içeriğini güncelliyoruz.
+
+
 static ToDoItem CreateInstance(ToDoItem template, DateTime creationDate, ToDoUser user)
 {
     return new ToDoItem
@@ -225,8 +262,6 @@ static ToDoItem CreateInstance(ToDoItem template, DateTime creationDate, ToDoUse
     };
 }
 
-// Program.cs dosyasında MapPost'un altına ekle
-
 app.MapPut("/api/todos/{id:int}", async (int id, TaskDto updatedTask, ToDoContext db) =>
 {
     var task = await db.ToDoItems.FindAsync(id);
@@ -235,13 +270,49 @@ app.MapPut("/api/todos/{id:int}", async (int id, TaskDto updatedTask, ToDoContex
         return Results.NotFound("Görev bulunamadı.");
     }
 
-    // Sadece güncellenmesine izin verdiğimiz alanları değiştir
+     if (task.State == State.Acik && updatedTask.State == State.Isaretli)
+    {
+        var user = await db.Users.FindAsync(task.UserId);
+        if (user != null)
+        {
+            switch (task.Category)
+            {
+                case "Günlük":
+                    user.Score += 2;
+                    user.DailyTasksCompleted++;
+                    break;
+                case "Haftalık":
+                    user.Score += 7;
+                    user.WeeklyTasksCompleted++;
+                    break;
+                case "Aylık":
+                    user.Score += 25;
+                    user.MonthlyTasksCompleted++;
+                    break;
+            }
+        }
+    }
+
     task.Title = updatedTask.Title;
     task.State = updatedTask.State;
-    // Diğer alanları (createdAt, UserId vb.) değiştirmeye izin verme
 
     await db.SaveChangesAsync();
-    return Results.NoContent();
+
+    var ownerUser = await db.Users.FindAsync(task.UserId);
+    var userDto = new UserDto
+    {
+        Id = ownerUser.Id,
+        Username = ownerUser.Username,
+        Score = ownerUser.Score,
+        DailyTasks = ownerUser.DailyTasks,
+        WeeklyTasks = ownerUser.WeeklyTasks,
+        MonthlyTasks = ownerUser.MonthlyTasks,
+        DailyTasksCompleted = ownerUser.DailyTasksCompleted,
+        WeeklyTasksCompleted = ownerUser.WeeklyTasksCompleted,
+        MonthlyTasksCompleted = ownerUser.MonthlyTasksCompleted
+    };
+
+    return Results.Ok(userDto);
 });
 
 app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [FromBody] DeleteTaskDto dto, ToDoContext db) =>
@@ -266,6 +337,23 @@ app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [Fr
         return Results.NoContent();
     }
 
+     var templateTask = await db.ToDoItems.FindAsync(templateIdToDelete);
+    if (templateTask != null)
+    {
+        switch (templateTask.Category)
+        {
+            case "Günlük":
+                if (user.DailyTasks > 0) user.DailyTasks--;
+                break;
+            case "Haftalık":
+                if (user.WeeklyTasks > 0) user.WeeklyTasks--;
+                break;
+            case "Aylık":
+                if (user.MonthlyTasks > 0) user.MonthlyTasks--;
+                break;
+        }
+    }
+
     var today = DateTime.UtcNow.Date;
 
     var tasksToDelete = await db.ToDoItems
@@ -282,7 +370,19 @@ app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [Fr
         await db.SaveChangesAsync();
     }
 
-    return Results.NoContent();
+    var userDto = new UserDto
+    {
+        Id = user.Id,
+        Username = user.Username,
+        Score = user.Score,
+        DailyTasks = user.DailyTasks,
+        WeeklyTasks = user.WeeklyTasks,
+        MonthlyTasks = user.MonthlyTasks,
+        DailyTasksCompleted = user.DailyTasksCompleted,
+        WeeklyTasksCompleted = user.WeeklyTasksCompleted,
+        MonthlyTasksCompleted = user.MonthlyTasksCompleted
+    };
+    return Results.Ok(userDto); 
 });
 
 app.MapControllers();
