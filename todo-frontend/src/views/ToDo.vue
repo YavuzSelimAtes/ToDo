@@ -1,24 +1,78 @@
 <template>
 <div>
+<div>
+  <Leaderboard v-if="isLeaderboardVisible" :user-id="userId" @close="isLeaderboardVisible = false" />
   <transition name="slide-fade">
-      <!-- Kenar çubuğu (Sidebar) -->
+    </transition>
+  </div>
+  <transition name="slide-fade">
       <div v-if="isSidebarOpen" class="sidebar">
         <div class="user-profile">
           <h3 v-if="user" class="username">{{ user.username }}</h3>
-          <div class="task-stats">
-            <button class="stat-button">
-              <span>Günlük: {{user.dailyTasks}}</span>
-            </button>
-            <button class="stat-button">
-              <span>Haftalık: {{user.weeklyTasks}}</span>
-            </button>
-            <button class="stat-button">
-              <span>Aylık: {{user.monthlyTasks}}</span>
-            </button>
-          </div>    
+<div class="stat-item-wrapper">
+  <button 
+    class="stat-button" 
+    @mouseenter="handleMouseEnter('Günlük')" 
+    @mouseleave="handleMouseLeave()">
+    <span>Günlük: {{ user.dailyTasks }}</span>
+  </button>
+  
+  <transition name="details-slide">
+    <div v-if="visibleDetails === 'Günlük'" class="details-panel">
+      <div class="stat-line"><span>Oluşturulan:</span> <span>{{ user.totalDailyTasksCreated }}</span></div>
+      <div class="stat-line"><span>Başarılı:</span> <span class="text-success">{{ user.dailyTasksCompleted }}</span></div>
+      <div class="stat-line"><span>Başarısız:</span> <span class="text-danger">{{ user.dailyTasksFailed }}</span></div>
+      <div class="stat-line"><span>Kazanılan Puan:</span> <span>{{ totalDailyScore }}</span></div>
+    </div>
+  </transition>
+</div>
+
+<div class="stat-item-wrapper">
+  <button 
+    class="stat-button" 
+    @mouseenter="handleMouseEnter('Haftalık')" 
+    @mouseleave="handleMouseLeave()">
+    <span>Haftalık: {{ user.weeklyTasks }}</span>
+  </button>
+
+  <transition name="details-slide">
+    <div v-if="visibleDetails === 'Haftalık'" class="details-panel">
+      <div class="stat-line"><span>Oluşturulan:</span> <span>{{ user.totalWeeklyTasksCreated }}</span></div>
+      <div class="stat-line"><span>Başarılı:</span> <span class="text-success">{{ user.weeklyTasksCompleted }}</span></div>
+      <div class="stat-line"><span>Başarısız:</span> <span class="text-danger">{{ user.weeklyTasksFailed }}</span></div>
+      <div class="stat-line"><span>Kazanılan Puan:</span> <span>{{ totalWeeklyScore }}</span></div>
+    </div>
+  </transition>
+</div>
+
+<div class="stat-item-wrapper">
+  <button 
+    class="stat-button" 
+    @mouseenter="handleMouseEnter('Aylık')" 
+    @mouseleave="handleMouseLeave()">
+    <span>Aylık: {{ user.monthlyTasks }}</span>
+  </button>
+  
+  <transition name="details-slide">
+    <div v-if="visibleDetails === 'Aylık'" class="details-panel">
+      <div class="stat-line"><span>Oluşturulan:</span> <span>{{ user.totalMonthlyTasksCreated }}</span></div>
+      <div class="stat-line"><span>Başarılı:</span> <span class="text-success">{{ user.monthlyTasksCompleted }}</span></div>
+      <div class="stat-line"><span>Başarısız:</span> <span class="text-danger">{{ user.monthlyTasksFailed }}</span></div>
+      <div class="stat-line"><span>Kazanılan Puan:</span> <span>{{ totalMonthlyScore }}</span></div>
+    </div>
+  </transition>
+</div>
           <div class="score-container">
             <button class="score-button">Skor: {{user.score}}</button>
-          </div>      
+          </div>  
+          <div class="sidebar-actions">
+            <button @click="logout" class="logout-button">
+              Çıkış Yap
+            </button>
+            <button @click="deleteUserAccount" class="delete-account-button">
+              Hesabı Sil
+            </button>
+          </div>    
         </div>
       </div>
   </transition>
@@ -55,13 +109,18 @@
         </button>
       </div>
       <div class="sidebar-toggle-container">
-        <button @click="isSidebarOpen = !isSidebarOpen" class="sidebar-toggle-button">
+        <div class="bottom-left-actions">
+          <button @click="isSidebarOpen = !isSidebarOpen" class="sidebar-toggle-button">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
             </svg>
           </button>
+          <button @click="isLeaderboardVisible = true" class="leaderboard-toggle-button">
+            Leaderboard
+          </button>
+        </div>
       </div>
     </div>
 
@@ -138,7 +197,7 @@
         </div>
         <ul class="todo-list">
   <li v-for="task in tasks" :key="task.id" 
-      :class="{ 'completed': task.state === 2, 'disabled': task.state === 0 }">
+    :class="{ 'completed': task.state === 2, 'disabled': task.state === 0, 'failed': task.state === 3 }">
     <input 
       type="checkbox" 
       :checked="task.state === 2"
@@ -193,7 +252,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import Leaderboard from './Leaderboard.vue';
 import { isDarkMode } from '../themeStore.js';
 import 'v-calendar/style.css';
 import { DatePicker as VDatePicker } from 'v-calendar';
@@ -207,7 +267,7 @@ const newChallengeName = ref('');
 const userId = localStorage.getItem('userId');
 const isChallengePopupVisible = ref(false);
 const selectedDate = ref(new Date());
-const isCalendarVisible = ref(true);
+const isCalendarVisible = ref(false);
 const calendarContainerRef = ref(null);
 const calendarButtonRef = ref(null);
 const selectedYear = ref(new Date().getFullYear());
@@ -225,6 +285,9 @@ const currentMonthIndex = ref(new Date().getMonth());
 const currentYear = ref(new Date().getFullYear());
 const isLoading = ref(false);
 const isSidebarOpen = ref(false);
+const detailsTimer = ref(null);  
+const visibleDetails = ref(null);
+const isLeaderboardVisible = ref(false);
 
 // --- API Fonksiyonları ---
 
@@ -277,6 +340,37 @@ async function fetchUser() {
   }
 }
 
+async function deleteUserAccount() {
+  const promptMessage = 'Hesabınızı kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz ve tüm verileriniz kaybolacaktır.\n\nDevam etmek için lütfen şifrenizi girin:';
+  const password = prompt(promptMessage);
+
+  if (password === null || password === '') {
+    return; // Kullanıcı iptal etti veya bir şey girmedi
+  }
+
+  try {
+    const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: password }) // DTO'ya uygun şekilde gönder
+    });
+
+    if (res.ok) {
+      alert("Hesabınız başarıyla silindi.");
+      // Kullanıcıyı çıkışa yönlendir
+      localStorage.removeItem('userId');
+      window.location.href = '/'; // Ana sayfaya veya giriş sayfasına yönlendir
+    } else if (res.status === 401) {
+      alert('Geçersiz şifre! Hesap silinemedi.');
+    } else {
+      alert('Hesap silinirken bir hata oluştu.');
+    }
+  } catch (error) {
+    console.error("Hesap silinirken hata:", error);
+    alert('Sunucuyla iletişim kurulamadı.');
+  }
+}
+
 async function createTaskApi(title, category) {
     const taskData = {
         title: title,
@@ -318,7 +412,7 @@ async function createTaskFromPopup() {
 }
 
 async function deleteTask(taskId) {
-  const promptMessage = 'Bu alışkanlığı ve ilgili tüm geçmiş/gelecek görevleri kalıcı olarak silmek istediğinizden emin misiniz?\n\nLütfen şifrenizi girin:';
+  const promptMessage = 'Bu alışkanlık şablonunu ve sadece bu görevi kalıcı olarak silmek istediğinizden emin misiniz?\n\nBu işlem sonrası bu alışkanlık için gelecekte yeni görevler oluşturulmayacaktır.\n\nLütfen şifrenizi girin:';
   const password = prompt(promptMessage);
   
   if (password === null || password === '') return;
@@ -500,6 +594,42 @@ function nextYearForMonthView() {
   const currentYear = selectedMonthDate.value.getFullYear();
   selectedMonthDate.value = new Date(selectedMonthDate.value.setFullYear(currentYear + 1));
   fetchTasks();
+}
+const totalDailyScore = computed(() => {
+  if (!user.value) return 0; 
+  return (user.value.dailyTasksCompleted * 2) - (user.value.dailyTasksFailed * 3);
+});
+
+const totalWeeklyScore = computed(() => {
+  if (!user.value) return 0;
+  // (Başarılı * 7) - (Başarısız * 10)
+  return (user.value.weeklyTasksCompleted * 7) - (user.value.weeklyTasksFailed * 10);
+});
+
+const totalMonthlyScore = computed(() => {
+  if (!user.value) return 0;
+  // (Başarılı * 25) - (Başarısız * 35)
+  return (user.value.monthlyTasksCompleted * 25) - (user.value.monthlyTasksFailed * 35);
+});
+
+function handleMouseEnter(category) {
+  // Eğer başka bir zamanlayıcı varsa önce onu temizle
+  clearTimeout(detailsTimer.value);
+  detailsTimer.value = setTimeout(() => {
+    visibleDetails.value = category;
+  }, 200);
+}
+
+function handleMouseLeave() {
+  visibleDetails.value = null;
+  clearTimeout(detailsTimer.value);
+}
+
+function logout() {
+  // 1. Tarayıcının hafızasındaki kullanıcı ID'sini sil
+  localStorage.removeItem('userId');
+  // 2. Kullanıcıyı ana sayfaya (veya giriş sayfasına) yönlendir
+  window.location.href = '/';
 }
 </script>
 
@@ -1130,6 +1260,8 @@ function nextYearForMonthView() {
   transition: all 0.2s ease;
   width: 100%;
   box-shadow: 0 5px 5px rgba(0,0,0,0.2);
+  position: relative;
+  z-index: 10;
 }
 
 .stat-button:hover {
@@ -1174,6 +1306,195 @@ function nextYearForMonthView() {
 .slide-fade-enter-active,
 .slide-fade-leave-active {
   transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.todo-list li.failed {
+  opacity: 0.7; 
+}
+
+.todo-list li.failed span {
+  text-decoration: line-through; 
+  text-decoration-color: rgba(231, 76, 60, 0.8); 
+}
+
+.todo-list li.failed input[type="checkbox"]::before {
+  content: '✗'; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  width: 100%; 
+  height: 70%;
+  font-size: 35px;
+  line-height: 1; 
+  color: #e74c3c;
+  box-sizing: border-box;
+}
+
+.todo-list li.failed input[type="checkbox"] {
+  background-color: transparent;
+}
+
+.stat-item-wrapper {
+  position: relative;
+}
+
+.details-panel {
+  background-color: var(--arka-plan); 
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: -20px;
+  border: 1px solid var(--input-arkaplan);
+  overflow: hidden;
+  border-top-left-radius: 0;  
+  border-top-right-radius: 0;
+  border-top: none;          
+}
+
+.stat-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9em;
+  padding: 4px 0;
+}
+
+.stat-line span:first-child {
+  opacity: 0.8;
+}
+
+.text-success {
+  color: #2ecc71;
+  font-weight: bold;
+}
+
+.text-danger {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+.details-slide-enter-active{
+  transition: max-height 0.4s ease-in-out, 
+              opacity 0.4s ease-out 0.2s, 
+              padding-top 0.4s ease-in-out,
+              padding-bottom 0.4s ease-in-out,
+              margin-top 0.4s ease-in-out;
+  max-height: 200px;
+}
+
+.details-slide-leave-active {
+  transition: max-height 0.4s ease-in-out, 
+              opacity 0.3s ease-in,
+              padding-top 0.4s ease-in-out,
+              padding-bottom 0.4s ease-in-out,
+              margin-top 0.4s ease-in-out;
+  max-height: 200px;
+}
+
+.details-slide-enter-from,
+.details-slide-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+}
+
+.sidebar-actions {
+  padding-top: 2em;
+  width: 100%;
+  display: flex;
+  gap: 10px;
+}
+
+.logout-button,
+.delete-account-button {
+  border: none;
+  padding: 6px 60px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-button {
+  background-color: var(--arka-plan);
+  color: var(--yazi-rengi);
+  padding: 8px;
+  border: 1px solid var(--yazi-rengi);
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 1.2em;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-shadow: 0 5px 5px rgba(0,0,0,0.2);
+}
+
+.logout-button:hover {
+  background-color: var(--selected-buton-yazi);
+  color: var(--selected-buton-arkaplan);
+  transform: scale(0.9);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.delete-account-button {
+  background-color: var(--arka-plan);
+  color: var(--yazi-rengi);
+  padding: 8px;
+  border: 1px solid var(--yazi-rengi);
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 1.2em;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-shadow: 0 5px 5px rgba(0,0,0,0.2);
+}
+
+.delete-account-button:hover {
+  background-color: #ab1303ff; 
+  transform: scale(0.9);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  color: var(--selected-buton-arkaplan);
+  border: 1px solid #ab1303ff;
+}
+
+/* Bu bloğu <style scoped> etiketinin içine ekle */
+
+.sidebar-toggle-container {
+  margin-top: auto; /* Zaten vardı, en alta itmeye devam ediyor */
+  padding-top: 2em;
+}
+
+.bottom-left-actions {
+  display: flex; /* Butonları yan yana getirir */
+  align-items: center;
+  gap: 15px; /* Aralarına boşluk koyar */
+}
+
+.leaderboard-toggle-button {
+  background: var(--buton-arkaplan);
+  color: var(--buton-yazi);
+  border: 3px solid var(--buton-arkaplan);
+  cursor: pointer;
+  height: 44px;
+  padding: 0 80px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+  font-size: 24px;      
+  line-height: 1;
+}
+
+.leaderboard-toggle-button:hover {
+  background-color: var(--arka-plan);
+  color: var(--yazi-rengi);
+  border: 3px solid var(--yazi-rengi);
 }
 
 </style>

@@ -2,6 +2,7 @@ using ToDoApi.Data;
 using ToDoApi.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Diagnostics;
 
 namespace ToDoApi.Services
 {
@@ -19,9 +20,9 @@ namespace ToDoApi.Services
         public async Task ProcessDailyTasks()
         {
             //var today = DateTime.UtcNow.Date; // <<-- ORİJİNAL KOD (Normal çalışma için bu satır aktif olmalı)
-            var today = DateTime.UtcNow.Date.AddDays(2);    // YARINI test etmek için bu satırı kullanın
+            //var today = DateTime.UtcNow.Date.AddDays();    // YARINI test etmek için bu satırı kullanın
             //var today = DateTime.UtcNow.Date.AddDays(14);    // 1 HAFTA SONRASINI test etmek için bu satırı kullanın
-            //var today = DateTime.UtcNow.Date.AddMonths(1);  // 1 AY SONRASINI test etmek için bu satırı kullanın
+            var today = DateTime.UtcNow.Date.AddMonths(1);  // 1 AY SONRASINI test etmek için bu satırı kullanın
 
             await CreateNewInstances(today);
 
@@ -106,6 +107,24 @@ namespace ToDoApi.Services
                     var newInstance = CreateInstanceFromTemplate(template, startOfDayUtc);
                     _db.ToDoItems.Add(newInstance);
                     _logger.LogInformation("Yeni {Category} görevi oluşturuldu: {Title}", template.Category, template.Title);
+
+                    var user = await _db.Users.FindAsync(template.UserId);
+            if (user != null)
+            {
+                // Kategorisine göre doğru sayacı bir arttır
+                switch (template.Category)
+                {
+                    case "Günlük":
+                        user.TotalDailyTasksCreated++;
+                        break;
+                    case "Haftalık":
+                        user.TotalWeeklyTasksCreated++;
+                        break;
+                    case "Aylık":
+                        user.TotalMonthlyTasksCreated++;
+                        break;
+                }
+            }
                 }
             }
 

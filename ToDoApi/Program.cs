@@ -150,12 +150,70 @@ app.MapGet("/api/users/{userId}", async (int userId, ToDoContext db) =>
         DailyTasks = user.DailyTasks,
         WeeklyTasks = user.WeeklyTasks,
         MonthlyTasks = user.MonthlyTasks,
+        TotalDailyTasksCreated = user.TotalDailyTasksCreated,
+        TotalWeeklyTasksCreated = user.TotalWeeklyTasksCreated,
+        TotalMonthlyTasksCreated = user.TotalMonthlyTasksCreated,
         DailyTasksCompleted = user.DailyTasksCompleted,
         WeeklyTasksCompleted = user.WeeklyTasksCompleted,
-        MonthlyTasksCompleted = user.MonthlyTasksCompleted
+        MonthlyTasksCompleted = user.MonthlyTasksCompleted,
+        DailyTasksFailed = user.DailyTasksFailed,
+        WeeklyTasksFailed = user.WeeklyTasksFailed,
+        MonthlyTasksFailed = user.MonthlyTasksFailed
     };
 
     return Results.Ok(userDto);
+});
+
+// Program.cs dosyasına, diğer API endpoint'lerinin yanına ekle
+
+app.MapGet("/api/leaderboard/{userId:int}", async (int userId, ToDoContext db) =>
+{
+    var allUsersOrdered = await db.Users
+        .OrderByDescending(u => u.Score)
+        .Select(u => new { u.Id, u.Username, u.Score }) // Sadece gerekli alanları alıyoruz
+        .ToListAsync();
+
+    var allRankedUsers = allUsersOrdered
+        .Select((user, index) => new
+        {
+            user.Id,
+            user.Username,
+            user.Score,
+            Rank = index + 1 // index 0'dan başlar, o yüzden +1
+    }).ToList();
+
+    var currentUserRankInfo = allRankedUsers.FirstOrDefault(u => u.Id == userId);
+
+    if (currentUserRankInfo == null)
+    {
+        return Results.NotFound("Mevcut kullanıcı bulunamadı.");
+    }
+
+    // 3. İlk 10 kullanıcıyı alıp LeaderboardUserDto listesine çevir
+    var topUsersDto = allRankedUsers
+        .Take(100)
+        .Select(u => new LeaderboardUserDto
+        {
+            Username = u.Username,
+            Score = u.Score
+        })
+        .ToList();
+
+
+    var currentUserRankDto = new CurrentUserRankDto
+    {
+        Username = currentUserRankInfo.Username,
+        Score = currentUserRankInfo.Score,
+        Rank = currentUserRankInfo.Rank
+    };
+
+    var response = new LeaderboardResponseDto
+    {
+        TopUsers = topUsersDto,
+        CurrentUserRank = currentUserRankDto
+    };
+
+    return Results.Ok(response);
 });
 
 app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, ToDoContext db) =>
@@ -170,12 +228,15 @@ app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, T
     {
         case "Günlük":
             user.DailyTasks++;
+            user.TotalDailyTasksCreated++;
             break;
         case "Haftalık":
             user.WeeklyTasks++;
+            user.TotalWeeklyTasksCreated++;
             break;
         case "Aylık":
             user.MonthlyTasks++;
+            user.TotalMonthlyTasksCreated++;
             break;
     }
 
@@ -238,9 +299,15 @@ app.MapPost("/api/users/{userId}/todos", async (int userId, CreateTaskDto dto, T
         DailyTasks = user.DailyTasks,
         WeeklyTasks = user.WeeklyTasks,
         MonthlyTasks = user.MonthlyTasks,
+        TotalDailyTasksCreated = user.TotalDailyTasksCreated,
+        TotalWeeklyTasksCreated = user.TotalWeeklyTasksCreated,
+        TotalMonthlyTasksCreated = user.TotalMonthlyTasksCreated,
         DailyTasksCompleted = user.DailyTasksCompleted,
         WeeklyTasksCompleted = user.WeeklyTasksCompleted,
-        MonthlyTasksCompleted = user.MonthlyTasksCompleted
+        MonthlyTasksCompleted = user.MonthlyTasksCompleted,
+        DailyTasksFailed = user.DailyTasksFailed,
+        WeeklyTasksFailed = user.WeeklyTasksFailed,
+        MonthlyTasksFailed = user.MonthlyTasksFailed
     };
 
     return Results.Ok(userDto); 
@@ -307,12 +374,53 @@ app.MapPut("/api/todos/{id:int}", async (int id, TaskDto updatedTask, ToDoContex
         DailyTasks = ownerUser.DailyTasks,
         WeeklyTasks = ownerUser.WeeklyTasks,
         MonthlyTasks = ownerUser.MonthlyTasks,
+        TotalDailyTasksCreated = ownerUser.TotalDailyTasksCreated,
+        TotalWeeklyTasksCreated = ownerUser.TotalWeeklyTasksCreated,
+        TotalMonthlyTasksCreated = ownerUser.TotalMonthlyTasksCreated,
         DailyTasksCompleted = ownerUser.DailyTasksCompleted,
         WeeklyTasksCompleted = ownerUser.WeeklyTasksCompleted,
-        MonthlyTasksCompleted = ownerUser.MonthlyTasksCompleted
+        MonthlyTasksCompleted = ownerUser.MonthlyTasksCompleted,
+        DailyTasksFailed = ownerUser.DailyTasksFailed,
+        WeeklyTasksFailed = ownerUser.WeeklyTasksFailed,
+        MonthlyTasksFailed = ownerUser.MonthlyTasksFailed
     };
 
     return Results.Ok(userDto);
+});
+
+
+app.MapDelete("/api/users/{id:int}", async (int id, [FromBody] DeleteUserDto dto, ToDoContext db) =>
+{
+    // 1. Kullanıcıyı ID ile bul
+    var user = await db.Users.FindAsync(id);
+    if (user is null)
+    {
+        return Results.NotFound("Kullanıcı bulunamadı.");
+    }
+
+    // 2. Şifreyi doğrula
+    var hashed = HashPassword.Password(dto.Password);
+    if (user.PasswordHash != hashed)
+    {
+        return Results.Problem("Geçersiz şifre.", statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    // 3. Kullanıcıya ait tüm görevleri (şablonlar ve kopyalar) bul
+    var userTasks = await db.ToDoItems.Where(t => t.UserId == id).ToListAsync();
+    if (userTasks.Any())
+    {
+        // Bulunan tüm görevleri sil
+        db.ToDoItems.RemoveRange(userTasks);
+    }
+
+    // 4. Görevler silindikten sonra kullanıcının kendisini sil
+    db.Users.Remove(user);
+
+    // 5. Tüm değişiklikleri veritabanına kaydet
+    await db.SaveChangesAsync();
+
+    // 6. Başarılı olduğuna dair boş bir cevap dön
+    return Results.NoContent();
 });
 
 app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [FromBody] DeleteTaskDto dto, ToDoContext db) =>
@@ -344,24 +452,21 @@ app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [Fr
         {
             case "Günlük":
                 if (user.DailyTasks > 0) user.DailyTasks--;
+                user.TotalDailyTasksCreated--;
                 break;
             case "Haftalık":
                 if (user.WeeklyTasks > 0) user.WeeklyTasks--;
+                user.TotalWeeklyTasksCreated--;
                 break;
             case "Aylık":
                 if (user.MonthlyTasks > 0) user.MonthlyTasks--;
+                user.TotalMonthlyTasksCreated--;
                 break;
         }
     }
 
-    var today = DateTime.UtcNow.Date;
-
     var tasksToDelete = await db.ToDoItems
-        .Where(t => 
-            t.Id == templateIdToDelete || // 1. Ana şablonun kendisi
-            (t.ParentTaskId == templateIdToDelete && t.CreatedAt.Date >= today) || // 2. Bugünden itibaren oluşturulmuş kopyalar
-            t.Id == instanceId // 3. (YENİ EKLENDİ) Üzerine tıklanan kopyanın kendisi
-        )
+        .Where(t => t.Id == templateIdToDelete || t.Id == instanceId)
         .ToListAsync();
 
     if (tasksToDelete.Any())
@@ -378,9 +483,15 @@ app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [Fr
         DailyTasks = user.DailyTasks,
         WeeklyTasks = user.WeeklyTasks,
         MonthlyTasks = user.MonthlyTasks,
+        TotalDailyTasksCreated = user.TotalDailyTasksCreated,
+        TotalWeeklyTasksCreated = user.TotalWeeklyTasksCreated,
+        TotalMonthlyTasksCreated = user.TotalMonthlyTasksCreated,
         DailyTasksCompleted = user.DailyTasksCompleted,
         WeeklyTasksCompleted = user.WeeklyTasksCompleted,
-        MonthlyTasksCompleted = user.MonthlyTasksCompleted
+        MonthlyTasksCompleted = user.MonthlyTasksCompleted,
+        DailyTasksFailed = user.DailyTasksFailed,
+        WeeklyTasksFailed = user.WeeklyTasksFailed,
+        MonthlyTasksFailed = user.MonthlyTasksFailed
     };
     return Results.Ok(userDto); 
 });
