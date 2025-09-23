@@ -32,5 +32,5 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=backend-build /app/publish .
 
-RUN ls -R
+ENV ASPNETCORE_URLS=http://+:80
 ENTRYPOINT ["dotnet", "ToDoApi.dll"]
