@@ -1,16 +1,33 @@
-# Çalışma zamanı
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM node:18 AS frontend-build
 WORKDIR /app
 
-# Derleme
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+COPY todo-frontend/package*.json ./
+RUN npm install
+
+COPY todo-frontend/ ./
+
+RUN npm run build
+
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS backend-build
 WORKDIR /src
-COPY . .
+
+COPY *.csproj ./
 RUN dotnet restore
+
+COPY . ./
+
+WORKDIR "/src/wwwroot"
+COPY --from=frontend-build /app/dist .
+
+WORKDIR "/src/"
 RUN dotnet publish -c Release -o /app/publish
 
-# Final
-FROM base AS final
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
-COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "ToDoApi.dll"]  
+
+COPY --from=backend-build /app/publish .
+
+# Uygulamayı çalıştırıyoruz.
+ENTRYPOINT ["dotnet", "ToDoApi.dll"]
