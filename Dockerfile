@@ -1,5 +1,5 @@
 # === AŞAMA 1: Vue.js Frontend'i Build Etme ===
-FROM node:18 AS frontend-build
+FROM node:20 AS frontend-build
 WORKDIR /app
 
 # Frontend projesinin dosyalarını kopyala
