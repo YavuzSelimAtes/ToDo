@@ -60,6 +60,10 @@ RecurringJob.AddOrUpdate<TaskStateService>(
     service => service.ProcessDailyTasks(),
     Cron.Daily(3, 0));
 
+app.UseStaticFiles();
+
+app.UseRouting();
+
 app.UseCors("open");
 
 if (app.Environment.IsDevelopment())
@@ -67,6 +71,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseAuthorization();
 
 app.MapGet("/", () => "Todo API is running");
 
@@ -445,7 +451,7 @@ app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [Fr
         return Results.NoContent();
     }
 
-     var templateTask = await db.ToDoItems.FindAsync(templateIdToDelete);
+    var templateTask = await db.ToDoItems.FindAsync(templateIdToDelete);
     if (templateTask != null)
     {
         switch (templateTask.Category)
@@ -493,9 +499,11 @@ app.MapDelete("/api/todos/template/{instanceId:int}", async (int instanceId, [Fr
         WeeklyTasksFailed = user.WeeklyTasksFailed,
         MonthlyTasksFailed = user.MonthlyTasksFailed
     };
-    return Results.Ok(userDto); 
+    return Results.Ok(userDto);
 });
 
 app.MapControllers();
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
