@@ -74,8 +74,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
-app.MapGet("/", () => "Todo API is running");
-
 app.MapGet("/api/users/{userId}/todos", async (
     int userId,
     string? category,
