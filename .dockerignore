@@ -1,0 +1,4 @@
+node_modules
+dist
+.git
+**/Properties/launchSettings.json
