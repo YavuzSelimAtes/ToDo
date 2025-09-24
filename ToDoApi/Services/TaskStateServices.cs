@@ -19,10 +19,10 @@ namespace ToDoApi.Services
 
         public async Task ProcessDailyTasks()
         {
-            //var today = DateTime.UtcNow.Date; // <<-- ORİJİNAL KOD (Normal çalışma için bu satır aktif olmalı)
+            var today = DateTime.UtcNow.Date; // <<-- ORİJİNAL KOD (Normal çalışma için bu satır aktif olmalı)
             //var today = DateTime.UtcNow.Date.AddDays();    // YARINI test etmek için bu satırı kullanın
             //var today = DateTime.UtcNow.Date.AddDays(14);    // 1 HAFTA SONRASINI test etmek için bu satırı kullanın
-            var today = DateTime.UtcNow.Date.AddMonths(1);  // 1 AY SONRASINI test etmek için bu satırı kullanın
+            //var today = DateTime.UtcNow.Date.AddMonths(1);  // 1 AY SONRASINI test etmek için bu satırı kullanın
 
             await CreateNewInstances(today);
 
