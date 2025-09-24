@@ -33,4 +33,5 @@ WORKDIR /app
 COPY --from=backend-build /app/publish .
 
 ENV ASPNETCORE_URLS=http://+:80
+RUN ls -R /app/wwwroot
 ENTRYPOINT ["dotnet", "ToDoApi.dll"]
