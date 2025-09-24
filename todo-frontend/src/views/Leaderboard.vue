@@ -53,7 +53,7 @@ async function fetchLeaderboard() {
   if (!props.userId) return;
   isLoading.value = true;
   try {
-    const res = await fetch(`http://localhost:5000/api/leaderboard/${props.userId}`);
+    const res = await fetch(`/api/leaderboard/${props.userId}`);
     if (res.ok) {
       leaderboardData.value = await res.json();
     } else {

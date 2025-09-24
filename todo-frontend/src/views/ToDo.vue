@@ -296,7 +296,7 @@ async function fetchTasks() {
   if (!userId) return;
   isLoading.value = true; // Yükleme başladı
   try {
-    let apiUrl = `http://localhost:5000/api/users/${userId}/todos?category=${activeCategory.value}`;
+    let apiUrl = `/api/users/${userId}/todos?category=${activeCategory.value}`;
 
     if (activeCategory.value === 'Günlük') {
       const startOfDay = new Date(selectedDate.value);
@@ -328,7 +328,7 @@ async function fetchTasks() {
 async function fetchUser() {
   if (!userId) return;
   try {
-    const res = await fetch(`http://localhost:5000/api/users/${userId}`);
+    const res = await fetch(`/api/users/${userId}`);
     if (res.ok) {
       user.value = await res.json();
     } else {
@@ -349,7 +349,7 @@ async function deleteUserAccount() {
   }
 
   try {
-    const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+    const res = await fetch(`/api/users/${userId}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: password }) // DTO'ya uygun şekilde gönder
@@ -377,7 +377,7 @@ async function createTaskApi(title, category) {
         category: category,
         createdAt: new Date().toISOString()
     };
-    const res = await fetch(`http://localhost:5000/api/users/${userId}/todos`, {
+    const res = await fetch(`/api/users/${userId}/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(taskData)
@@ -417,7 +417,7 @@ async function deleteTask(taskId) {
   
   if (password === null || password === '') return;
 
-  const res = await fetch(`http://localhost:5000/api/todos/template/${taskId}`, {
+  const res = await fetch(`/api/todos/template/${taskId}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ 
@@ -453,7 +453,7 @@ async function toggleTaskState(task) {
 
 // Bu fonksiyon, değişikliği backend'e gönderir.
 async function updateTask(task) {
-  const res = await fetch(`http://localhost:5000/api/todos/${task.id}`, {
+  const res = await fetch(`/api/todos/${task.id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task)
